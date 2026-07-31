@@ -1,0 +1,276 @@
+Phase  1  —  Product  Thinking  Foundations  
+Module  1  —  What  is  Product  Management?  
+●  Role  of  a  Product  Manager  ●  PM  vs  Project  Manager  ●  PM  vs  Product  Owner  ●  Product  Mindset  ●  Product  Life  Cycle  ●  Product  Operating  Model  ●  Types  of  PMs  ●  B2B  vs  B2C  ●  Platform  Products  ●  Marketplace  Products  ●  AI  Products  ●  Product  Teams  
+ 
+Module  2  —  Customer  Discovery  
+●  Customer  Interviews  ●  Problem  Discovery  ●  Jobs  To  Be  Done  ●  Customer  Journey  Mapping  ●  User  Personas  ●  Empathy  Mapping  ●  Voice  of  Customer  ●  Opportunity  Identification  ●  User  Observation  ●  Problem  Validation  
+ 
+Module  3  —  Design  Thinking  
+●  Human  Centered  Design  ●  Double  Diamond  ●  Design  Sprint  ●  Brainstorming  ●  Crazy  8  ●  Storyboarding  ●  Ideation  
+●  Opportunity  Solution  Trees  ●  Design  Critique  
+(IIMK  +  ISB  +  Darden  all  emphasize  Design  Thinking.)   
+IIMK-APM07.pdf  
+ 
+Phase  2  —  Product  Strategy  
+Module  4  —  Product  Strategy  
+●  Vision  ●  Mission  ●  Strategy  ●  Objectives  ●  North  Star  ●  Product  Principles  ●  Competitive  Advantage  ●  Porter  Five  Forces  ●  Value  Chain  ●  Blue  Ocean  ●  Value  Proposition  Canvas  ●  Business  Model  Canvas  
+(IIMK  spends  several  modules  on  value  creation  and  strategy.)   
+IIMK-APM07.pdf  
+ 
+Module  5  —  Market  Research  
+●  TAM  ●  SAM  ●  SOM  ●  Competitive  Analysis  ●  SWOT  ●  Market  Segmentation  ●  Positioning  ●  Buyer  Persona  ●  Pricing  Strategy  
+ 
+Phase  3  —  Building  Products  
+Module  6  —  Product  Discovery  
+●  Opportunity  Assessment  ●  Feature  Discovery  ●  Prioritization  ●  ICE  ●  RICE  ●  Kano  ●  MoSCoW  ●  Opportunity  Cost  
+ 
+Module  7  —  Product  Design  
+●  UX  ●  UI  ●  Information  Architecture  ●  User  Flow  ●  Wireframes  ●  Mockups  ●  Interactive  Prototypes  ●  Accessibility  ●  Design  Systems  ●  Figma  
+ 
+Module  8  —  Product  Requirements  
+●  PRD  ●  Functional  Requirements  ●  Non-functional  Requirements  ●  User  Stories  ●  Acceptance  Criteria  ●  Epics  ●  Themes  ●  Backlog  ●  Documentation  ●  RFCs  
+ 
+Phase  4  —  Technical  PM  
+Module  9  —  Technical  Foundations  
+●  APIs  ●  REST  ●  GraphQL  ●  HTTP  ●  JSON  ●  Databases  ●  SQL  ●  Authentication  ●  System  Design  ●  Cloud  Basics  ●  Microservices  ●  Event  Driven  Systems  ●  Caching  ●  CDN  ●  Message  Queues  
+(Airtribe  covers  this  heavily.)  
+ 
+Module  10  —  Software  Engineering  Basics  
+●  Git  ●  GitHub  ●  CI/CD  ●  Testing  ●  Architecture  ●  Deployment  ●  Versioning  
+ 
+Phase  5  —  Agile  Product  Management  
+Module  11  
+●  Agile  ●  Scrum  ●  Kanban  
+●  Sprint  Planning  ●  Standups  ●  Retrospectives  ●  Story  Points  ●  Velocity  ●  MVP  ●  MDP  ●  Release  Planning  
+(IIMK  includes  Agile,  MVP,  and  MDP.)   
+IIMK-APM07.pdf  
+ 
+Phase  6  —  Product  Analytics  
+Module  12  
+●  Product  Metrics  ●  North  Star  ●  AARRR  ●  HEART  ●  Funnels  ●  Cohorts  ●  Retention  ●  Churn  ●  Activation  ●  Stickiness  ●  SQL  ●  Excel  ●  Mixpanel  ●  Amplitude  ●  GA4  
+ 
+Module  13  —  Experimentation  
+●  A/B  Testing  ●  Feature  Flags  ●  Experiment  Design  ●  Statistical  Significance  ●  Product  Dashboards  ●  KPI  Design  
+ 
+Phase  7  —  AI  Product  Management  
+Module  14  —  AI  Foundations  
+●  Machine  Learning  ●  Deep  Learning  ●  Transformers  ●  LLMs  ●  Embeddings  ●  Tokens  ●  Vector  Databases  
+(IIMK  introduces  LLMs  and  AI  in  PM.)   
+IIMK-APM07.pdf  
+ 
+Module  15  —  Generative  AI  
+●  Prompt  Engineering  ●  Context  Engineering  ●  RAG  ●  AI  Agents  ●  MCP  ●  A2A  ●  AI  Evaluation  ●  Guardrails  ●  Fine  Tuning  ●  Function  Calling  
+(Airtribe  and  Product  Space  contribute  most  of  these.)  
+ 
+Module  16  —  AI  Product  Design  
+●  AI  UX  ●  Copilot  Design  ●  Human-in-the-loop  ●  AI  Workflows  ●  AI  Safety  ●  Hallucinations  
+●  Prompt  Libraries  ●  AI  Product  Metrics  
+ 
+Phase  8  —  Growth  
+Module  17  
+●  Product  Led  Growth  ●  Growth  Loops  ●  Virality  ●  Network  Effects  ●  Monetization  ●  Pricing  ●  Freemium  ●  Subscription  Models  ●  Marketplace  Growth  ●  Retention  
+ 
+Module  18  —  Go  To  Market  
+●  Launch  Planning  ●  GTM  Strategy  ●  Product  Marketing  ●  Positioning  ●  Messaging  ●  Sales  Enablement  ●  Adoption  ●  Customer  Success  
+(IIMK  dedicates  modules  to  positioning,  launches,  and  sales.)    
+ 
+Phase  9  —  Business  
+Module  19  
+●  Finance  for  PMs  ●  Unit  Economics  
+●  P&L  ●  ROI  ●  NPV  ●  CAC  ●  LTV  ●  Pricing  Models  ●  Revenue  Models  
+(IIMK  includes  Finance  for  Product  Managers.)   
+IIMK-APM07.pdf  
+ 
+Module  20  
+●  B2B  Products  ●  Enterprise  PM  ●  Platform  PM  ●  APIs  as  Products  ●  Sales-led  Growth  ●  Procurement  ●  Enterprise  Customers  
+ 
+Phase  10  —  Leadership  
+Module  21  
+●  Stakeholder  Management  ●  Executive  Communication  ●  Product  Reviews  ●  Storytelling  ●  Decision  Making  ●  Negotiation  ●  Conflict  Resolution  ●  Influence  without  Authority  ●  Leadership  
+(IIMK  includes  leadership  skills  specifically  for  product  managers.)   
+IIMK-APM07.pdf  
+ 
+Phase  11  —  Career  Preparation  
+Module  22  
+●  Resume  ●  LinkedIn  ●  PM  Portfolio  ●  Case  Studies  ●  Product  Critiques  ●  Product  Sense  ●  Estimation  ●  Metrics  Interviews  ●  Behavioral  Interviews  ●  Mock  Interviews  
+ 
+Phase  12  —  Portfolio  Projects  
+Build  progressively  more  challenging  projects:  
+1.  Spotify  Feature  Improvement  2.  Netflix  Product  Strategy  3.  Swiggy  Growth  Experiment  4.  Airbnb  Marketplace  Design  5.  WhatsApp  AI  Copilot  6.  AI  Meeting  Assistant  7.  Healthcare  AI  Product  8.  AI  Shopping  Assistant  9.  Enterprise  SaaS  Dashboard  10.  End-to-End  Capstone  with  PRD,  Figma  prototype,  analytics  plan,  GTM  strategy,  AI  
+integration,
+ 
+and
+ 
+executive
+ 
+presentation
+ 
+ 
+Estimated  Learning  Path  
+●  24  modules  ●  180–220  topics  ●  12  portfolio  projects  ●  40+  case  studies  ●  10+  mock  PM  interviews  ●  1  industry-grade  capstone  
+2.  Are  the  12  portfolio  projects  ready?  
+Not  yet—but  they  can  absolutely  be  built.  
+My  idea  isn’t  to  give  you  small  assignments  like  most  courses.  Instead,  each  project  should  
+resemble
+ 
+the
+ 
+kind
+ 
+of
+ 
+work
+ 
+a
+ 
+PM
+ 
+at
+ 
+Google,
+ 
+Microsoft,
+ 
+OpenAI,
+ 
+or
+ 
+a
+ 
+startup
+ 
+would
+ 
+actually
+ 
+present.
+ 
+For  example:  
+Beginner  
+Project  1  –  Spotify  
+●  Redesign  Discover  Weekly  ●  User  research  ●  JTBD  ●  User  flow  ●  Wireframes  ●  PRD  
+ 
+Project  2  –  Netflix  
+●  Improve  content  recommendations  ●  Define  metrics  ●  Run  an  A/B  test  plan  ●  Build  a  product  roadmap  
+ 
+Project  3  –  Swiggy  
+●  Increase  repeat  orders  ●  Growth  loops  ●  Funnel  analysis  ●  Dashboard  
+ 
+Intermediate  
+Project  4  –  WhatsApp  
+ 
+Design
+ 
+an
+ 
+AI
+ 
+Copilot
+ 
+ 
+Project  5  –  Gmail  
+ 
+Build
+ 
+an
+ 
+AI
+ 
+Email
+ 
+Assistant
+ 
+ 
+Project  6  –  Airbnb  
+ 
+Marketplace
+ 
+Strategy
+ 
+ 
+Project  7  –  Uber  
+ 
+Dynamic
+ 
+Pricing
+ 
+ 
+Advanced  
+Project  8  –  OpenAI  
+ 
+Design
+ 
+a
+ 
+Custom
+ 
+GPT
+ 
+Product
+ 
+ 
+Project  9  –  Cursor  AI  
+ 
+Build
+ 
+an
+ 
+AI
+ 
+Coding
+ 
+Assistant
+ 
+ 
+Project  10  –  Healthcare  AI  
+ 
+Project  11  –  Enterprise  SaaS  
+ 
+Project  12  –  Your  Own  Startup  
+ 
+This
+ 
+would
+ 
+be
+ 
+your
+ 
+flagship
+ 
+capstone,
+ 
+combining
+ 
+everything
+ 
+you’ve
+ 
+learned.
+ 
+Each  project  would  include:  
+●  Business  problem  ●  Research  ●  Competitive  analysis  ●  User  personas  ●  Wireframes  ●  PRD  ●  Technical  architecture  ●  AI  integration  ●  Metrics  ●  Dashboard  
+●  GTM  strategy  ●  Executive  presentation  
+These  aren’t  ready-made  today,  but  I  can  help  you  build  each  one  from  scratch.  
+ 
+3.  Are  the  40+  case  studies  ready?  
+Not  fully—but  unlike  portfolio  projects,  most  of  the  raw  material  already  exists.  
+Case  Studies  from  the  courses  
+The  IIM  Kozhikode  program  alone  includes  case  studies  such  as:   
+IIMK-APM07.pdf  
+●  Indraprastha  Cold  Storage  ●  Linc  to  Luxury  ●  Novartis  ●  Turtle  ●  Wow  Momo  ●  Burger  King  –  Moldy  Whopper  
+It  also  includes  simulations  on:  
+●  Crossing  the  Chasm  ●  Marker  Motion  (B2B  Marketing  Mix)   
+IIMK-APM07.pdf  
+ 
+Classic  Product  Case  Studies  
+●  Spotify  ●  Netflix  ●  Airbnb  ●  Uber  ●  Instagram  ●  Slack  ●  Notion  ●  Canva  ●  Figma  ●  Duolingo  ●  Stripe  
+●  Shopify  ●  Amazon  ●  Flipkart  ●  Zomato  ●  Swiggy  ●  Blinkit  ●  Razorpay  ●  CRED  ●  Zepto  
+ 
+AI  Product  Case  Studies  
+●  ChatGPT  ●  Claude  ●  Cursor  ●  Perplexity  ●  Midjourney  ●  Runway  ●  ElevenLabs  ●  Lovable  ●  Replit  AI  ●  Devin  ●  Windsurf  ●  Gamma  ●  NotebookLM  
+ 
+FAANG  Product  Sense  Questions  
+These  come  from  interview  preparation  resources  and  include  prompts  like:  
+●  Improve  Google  Maps.  ●  Design  YouTube  Kids.  ●  Increase  Instagram  retention.  ●  Design  an  AI  for  LinkedIn.  ●  Build  an  AI  Tutor.  ●  Reduce  Uber  cancellations.  ●  Design  Spotify  AI  DJ.  
+ 

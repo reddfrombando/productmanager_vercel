@@ -1,0 +1,227 @@
+Product Requirements Document
+Self-Paced Product Management Learning Platform
+Working title: “PM Foundations”
+Status: Draft v0.1 — for review
+Author: Product Owner (you) | Prepared by: Claude
+Date: July 30, 2026
+
+1. Overview
+This platform is a self-paced, free-resource-driven curriculum for learning product management end to end — from foundational concepts through AI product management, packaged as a structured, phase-based learning journey with embedded video tutorials, progress tracking, self-assessment, and a growing library of learner-built portfolio projects and case studies.
+It is built on top of a curated content taxonomy (12 phases, 24 modules, 180–220 topics) that already exists as a compiled resource list, and is designed to be continuously enriched over time by input from practicing product managers via a structured contributor pipeline.
+1.1 Problem Statement
+People trying to break into or grow in product management face two problems today:
+	•	Free, high-quality PM content is scattered across YouTube channels, newsletters, blogs, and paid courses, with no single structured path connecting them.
+	•	Most free content stops at “what is a PM” and rarely progresses to applied, portfolio-grade practice (PRDs, case studies, mock interviews) that actually gets someone hired.
+This platform's job is to organize existing free knowledge into a guided curriculum and pair it with practical, assessable exercises — without requiring the learner to pay for it.
+1.2 Goals
+	•	Give a self-directed learner a clear, phase-by-phase path through product management, from fundamentals to AI PM.
+	•	Make progress visible and motivating (tracking, completion state, light assessment) without turning the product into a heavyweight LMS.
+	•	Build a continuously improving content pipeline sourced from real, currently-practicing PMs, curated by an admin before publishing.
+	•	Keep the experience simple, visual, and fast to navigate — not a wall of text or a spreadsheet-like table.
+1.3 Non-Goals (for v1)
+	•	Not building proprietary video content — v1 embeds existing YouTube/Vimeo tutorials, not original filming.
+	•	Not a certification or accreditation product.
+	•	Not a cohort-based or live-instructor product — fully self-paced.
+	•	Not a general LMS for arbitrary subjects — scoped specifically to product management.
+2. Users & Personas
+Persona
+Description
+Primary need
+Career-switcher learner
+Adjacent role (engineering, design, marketing, ops) trying to break into PM
+A clear, structured path + portfolio artifacts to show in interviews
+Working PM upskilling
+Already a PM, wants to fill specific gaps (e.g., AI PM, technical PM)
+Ability to jump into a specific phase/module without redoing basics
+Contributor PM
+Practicing PM willing to share resource recommendations
+A low-friction way to contribute (form, not another sign-up-heavy tool)
+Admin (you)
+Owns and curates the platform
+A single place to review, approve, and publish contributed content
+3. Information Architecture
+Content is organized in a strict three-level hierarchy, matching the existing curriculum compilation:
+	•	Phase (e.g., “Phase 1 — Product Thinking Foundations”) — top-level stage of the journey
+	•	Module (e.g., “Module 2 — Customer Discovery”) — a themed unit within a phase
+	•	Topic (e.g., “Jobs To Be Done”) — an individual concept with its own tutorial links, notes area, and assessment
+The current source curriculum (from the compiled brochure) spans 12 phases, 24 modules, and 180–220 topics, plus 12 portfolio projects and 40+ case studies. This taxonomy is the v1 content backbone; see Appendix A for the full phase/module list.
+4. Core User Flows & Features
+4.1 Public Landing Page
+Purpose: explain the platform and convert visitors into signed-up learners.
+	•	Hero section introducing the platform as a free, compiled, structured path through product management.
+	•	Scrollable overview of the phase structure (visual, not a plain table) — gives a preview of the journey without requiring sign-in.
+	•	Primary CTA: “Sign in / Get started”.
+	•	Secondary, visually distinct entry point (bottom-left): “Are you a Product Manager? Help us build this.” — routes to the contributor flow (see 4.5).
+4.2 Authentication
+	•	Simple sign-in/sign-up (email or SSO — provider TBD, see Open Questions).
+	•	No paywall or approval gate for learners — anyone can sign in and start.
+4.3 Learning Journey Navigation
+	•	Post-login home: visual, card-based view of all Phases (not a dense table). Each phase card is clickable.
+	•	Phase view: shows that phase's Modules as an interactive grid (suggested: ~6 tiles per view, expandable), not a plain list.
+	•	Module view: clicking a module tile expands/enlarges into a detail view showing that module's Topics, with a clear back-navigation to the previous screen at every level.
+	•	Topic view: embedded tutorial video(s) (YouTube/Vimeo or other), a personal notes panel next to or below the video, and a completion control.
+4.4 Progress Tracking & Assessment
+	•	Per-topic completion state, settable manually and (where feasible) inferred automatically from video watch progress.
+	•	A persistent progress panel/tab showing overall completion and which modules/topics remain.
+	•	Each module includes a lightweight assessment or applied exercise (e.g., a short problem, prompt, or mini-project) so the learner demonstrates practical understanding, not just video-watching — maps to the portfolio projects and case studies in the source curriculum (see Appendix B).
+	•	Notes taken while watching are saved and revisitable per topic.
+4.5 Contributor Pipeline (“Are you a PM?”)
+A separate, lightweight flow for sourcing new content from practicing product managers, decoupled from the learner experience.
+	•	Entry point on the landing page routes contributors to a short external-shareable form (e.g., embedded form or a distinct link sent directly to PMs).
+	•	Form asks, per topic/module: “Any tutorial you'd recommend for this topic?” and “Any topic you have extra expertise in, plus a resource (link, book, PDF) for it?”
+	•	Submissions land in a review queue (not published automatically) — see Admin Panel.
+4.6 Admin Panel
+Admin-only area (not visible to learners) for curating and publishing content.
+	•	Content database view: all phases/modules/topics and their current published resources.
+	•	Submission queue: incoming contributor suggestions, with Approve / Reject / Edit-before-publish actions.
+	•	Publishing status per topic: Draft, Pending Approval, Published.
+	•	Basic reporting: how much of the curriculum has published content vs. gaps still needing resources.
+5. Non-Functional Requirements
+	•	Performance: phase/module navigation should feel instant (client-side transitions, no full page reloads between levels).
+	•	Usability: the browsing experience should feel visual and exploratory (card/tile based), explicitly not a dense spreadsheet-style table — this was a specific product requirement from the source brief.
+	•	Responsiveness: full functionality on both desktop and mobile, since a learner may watch a video on desktop but review notes on mobile.
+	•	Data privacy: contributor form data (name, role, company if collected) and learner notes should be access-restricted — only admin sees contributor data; only the learner sees their own notes.
+6. Open Questions & Assumptions
+The source brief (voice note) left several product decisions unresolved. Flagging these for explicit decisions before design/build:
+#
+Open question
+Working assumption (v1)
+1
+Auth provider — email/password, Google SSO, or both?
+Email + Google SSO
+2
+Is automatic video-progress tracking required for v1, or is manual check-off sufficient?
+Manual check-off in v1; automatic tracking in v2 if the video host's API supports it
+3
+What does the assessment format look like — quiz, open text, or project submission?
+Short open-text prompts in v1; project submissions (with peer/admin review) in v2
+4
+Where does contributor form data live — native database or Google Sheets?
+Native database with an admin UI, replacing the Google Sheets step described in the brief, to avoid a manual copy-paste workflow
+5
+Is there a monetization plan, or is this permanently free?
+Assumed free for v1; not specified in source brief
+6
+Video hosting rights — confirm embedding third-party YouTube/Vimeo content is acceptable for the intended use, or if creators need to be credited/linked explicitly
+Always link back to original creator/channel; no re-hosting of video files
+7. Delivery Phasing
+7.1 MVP (v1)
+	•	Landing page with visual phase overview + sign-in.
+	•	Phase → Module → Topic navigation (card/tile based).
+	•	Embedded tutorial videos per topic + manual progress check-off + notes.
+	•	Contributor form (public) → admin review queue → publish workflow.
+	•	Admin panel: content database + submission queue.
+7.2 V2
+	•	Automatic video-progress tracking.
+	•	Structured assessments / mini-projects with submission and review, aligned to the Portfolio Projects list (Appendix B).
+	•	Case study library (Appendix C) surfaced contextually within relevant modules.
+	•	Basic analytics/reporting for the admin on content coverage and learner engagement.
+7.3 V3+ (exploratory)
+	•	Peer or mentor review of learner-submitted projects.
+	•	Community layer connecting contributor PMs with learners.
+8. Success Metrics
+	•	Activation: % of sign-ups who complete at least one full module.
+	•	Depth: average number of phases reached per active learner.
+	•	Content growth: number of contributor submissions received and published per month.
+	•	Content coverage: % of topics in the taxonomy with at least one published resource.
+
+Appendix A: Phase & Module Taxonomy (Source Curriculum)
+Reproduced from the compiled curriculum brochure. This is the v1 content backbone — 12 phases, 24 modules.
+Phase 1 — Product Thinking Foundations
+	•	Module 1: What is Product Management?
+	•	Module 2: Customer Discovery
+	•	Module 3: Design Thinking
+Phase 2 — Product Strategy
+	•	Module 4: Product Strategy
+	•	Module 5: Market Research
+Phase 3 — Building Products
+	•	Module 6: Product Discovery
+	•	Module 7: Product Design
+	•	Module 8: Product Requirements
+Phase 4 — Technical PM
+	•	Module 9: Technical Foundations
+	•	Module 10: Software Engineering Basics
+Phase 5 — Agile Product Management
+	•	Module 11: Agile, Scrum, Kanban & Release Planning
+Phase 6 — Product Analytics
+	•	Module 12: Product Metrics
+	•	Module 13: Experimentation
+Phase 7 — AI Product Management
+	•	Module 14: AI Foundations
+	•	Module 15: Generative AI
+	•	Module 16: AI Product Design
+Phase 8 — Growth
+	•	Module 17: Growth Loops & Monetization
+	•	Module 18: Go-To-Market
+Phase 9 — Business
+	•	Module 19: Finance for PMs
+	•	Module 20: B2B & Enterprise PM
+Phase 10 — Leadership
+	•	Module 21: Stakeholder Management & Executive Communication
+Phase 11 — Career Preparation
+	•	Module 22: Resume, Portfolio, Interviews
+Phase 12 — Portfolio Projects
+	•	12 progressive projects — see Appendix B
+
+Appendix B: Portfolio Projects (12, Progressive Difficulty)
+#
+Project
+Level
+Focus
+1
+Spotify — Redesign Discover Weekly
+Beginner
+User research, JTBD, user flow, wireframes, PRD
+2
+Netflix — Improve content recommendations
+Beginner
+Metrics definition, A/B test plan, roadmap
+3
+Swiggy — Increase repeat orders
+Beginner
+Growth loops, funnel analysis, dashboard
+4
+WhatsApp — Design an AI Copilot
+Intermediate
+AI product design
+5
+Gmail — Build an AI Email Assistant
+Intermediate
+AI product design
+6
+Airbnb — Marketplace Strategy
+Intermediate
+Marketplace dynamics
+7
+Uber — Dynamic Pricing
+Intermediate
+Pricing strategy
+8
+OpenAI — Design a Custom GPT Product
+Advanced
+AI product strategy
+9
+Cursor AI — Build an AI Coding Assistant
+Advanced
+AI product strategy
+10
+Healthcare AI Product
+Advanced
+Regulated-industry AI PM
+11
+Enterprise SaaS Dashboard
+Advanced
+B2B/enterprise PM
+12
+Capstone — Your Own Startup
+Capstone
+PRD, prototype, analytics plan, GTM, AI integration, exec presentation
+
+Appendix C: Case Study Library (Reference Pool)
+Classic product case studies
+Spotify, Netflix, Airbnb, Uber, Instagram, Slack, Notion, Canva, Figma, Duolingo, Stripe, Shopify, Amazon, Flipkart, Zomato, Swiggy, Blinkit, Razorpay, CRED, Zepto.
+AI product case studies
+ChatGPT, Claude, Cursor, Perplexity, Midjourney, Runway, ElevenLabs, Lovable, Replit AI, Devin, Windsurf, Gamma, NotebookLM.
+FAANG-style product sense prompts
+Improve Google Maps; design YouTube Kids; increase Instagram retention; design an AI for LinkedIn; build an AI Tutor; reduce Uber cancellations; design a Spotify AI DJ.
+Note: source curriculum also references specific business-school case studies (e.g., from an IIM Kozhikode program PDF) — confirm licensing/usage rights before publishing those directly on the platform; summarizing with attribution is safer than reproducing them.
