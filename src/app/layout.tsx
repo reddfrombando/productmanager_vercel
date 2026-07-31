@@ -30,6 +30,10 @@ export const metadata: Metadata = {
     description: "Structured self-paced curriculum for modern and AI Product Management.",
     type: "website",
   },
+  verification: {
+    google: "VPf3yuZml6e_PFBnMs4wMmUDYZWY47Beo8SgucAvJ_M",
+     },
+
 };
 
 export default function RootLayout({
