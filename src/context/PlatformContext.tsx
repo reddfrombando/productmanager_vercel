@@ -74,12 +74,15 @@ export const PlatformProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
   const allTopics = [...TOPICS, ...customTopics];
 
+  // Local storage keys and helpers
+  const LOCAL_TOPIC_VIDEOS_KEY = "pm_topic_videos";
+
   // Load from local storage on mount (global objects and user session)
   useEffect(() => {
     const storedUser = localStorage.getItem("pm_user");
     const storedSubmissions = localStorage.getItem("pm_submissions");
     const storedCustomTopics = localStorage.getItem("pm_custom_topics");
-    const storedTopicVideos = localStorage.getItem("pm_topic_videos");
+    const storedTopicVideos = localStorage.getItem(LOCAL_TOPIC_VIDEOS_KEY);
 
     if (storedUser) {
       setUser(JSON.parse(storedUser));
@@ -87,15 +90,13 @@ export const PlatformProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     if (storedCustomTopics) {
       setCustomTopics(JSON.parse(storedCustomTopics));
     }
+
     if (storedTopicVideos) {
-      setTopicVideos(JSON.parse(storedTopicVideos));
-    } else {
-      const initialVideos: { [topicId: string]: string[] } = {};
-      TOPICS.forEach((t) => {
-        initialVideos[t.id] = [t.youtubeId];
-      });
-      setTopicVideos(initialVideos);
-      localStorage.setItem("pm_topic_videos", JSON.stringify(initialVideos));
+      try {
+        setTopicVideos(JSON.parse(storedTopicVideos));
+      } catch (e) {
+        // ignore parse errors
+      }
     }
 
     if (storedSubmissions) {
@@ -130,6 +131,46 @@ export const PlatformProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     }
     setInitialized(true);
   }, []);
+
+  // After initialization, fetch shared topic videos from server (Supabase) so admin-added links are visible to all users
+  useEffect(() => {
+    if (!initialized) return;
+
+    const fetchTopicVideos = async () => {
+      try {
+        const res = await fetch("/api/topic-videos");
+        if (res.ok) {
+          const data = await res.json();
+          // data expected: array of { topic_id, url }
+          const map: { [topicId: string]: string[] } = {};
+          data.forEach((row: any) => {
+            if (!map[row.topic_id]) map[row.topic_id] = [];
+            map[row.topic_id].push(row.url);
+          });
+          // Merge with existing local topicVideos to preserve local-only custom topics
+          setTopicVideos((prev) => {
+            const merged = { ...prev };
+            Object.keys(map).forEach((t) => {
+              const existing = merged[t] || [];
+              // avoid duplicates
+              merged[t] = Array.from(new Set([...existing, ...map[t]]));
+            });
+            // persist to localStorage for fast load next time
+            try {
+              localStorage.setItem(LOCAL_TOPIC_VIDEOS_KEY, JSON.stringify(merged));
+            } catch (e) {}
+            return merged;
+          });
+        } else {
+          // fallback handled by existing local storage
+        }
+      } catch (e) {
+        // network error: keep using local cache
+      }
+    };
+
+    fetchTopicVideos();
+  }, [initialized]);
 
   // Load user-specific tracking spaces when user session loads/changes
   useEffect(() => {
@@ -207,7 +248,9 @@ export const PlatformProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
   useEffect(() => {
     if (!initialized) return;
-    localStorage.setItem("pm_topic_videos", JSON.stringify(topicVideos));
+    try {
+      localStorage.setItem(LOCAL_TOPIC_VIDEOS_KEY, JSON.stringify(topicVideos));
+    } catch (e) {}
   }, [topicVideos, initialized]);
 
   const login = (name: string, email: string, role: "learner" | "admin") => {
@@ -297,34 +340,65 @@ export const PlatformProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     setSubmissions((prev) => [newSub, ...prev]);
   };
 
-  const updateSubmissionStatus = (id: string, status: "Approved" | "Rejected") => {
+  // Updated: when approving a submission, persist video links to Supabase via API
+  const updateSubmissionStatus = async (id: string, status: "Approved" | "Rejected") => {
     setSubmissions((prev) =>
       prev.map((sub) => {
         if (sub.id === id) {
-          if (status === "Approved") {
-            if (sub.suggestedTopicTitle) {
-              addTopic(
-                sub.moduleId || 1,
-                sub.suggestedTopicTitle,
-                sub.suggestedTopicDuration || "15 mins",
-                sub.link
-              );
-            } else if (sub.type === "Video") {
-              setTopicVideos((prevMap) => {
-                const prevList = prevMap[sub.topicId] || [];
-                if (prevList.includes(sub.link)) return prevMap;
-                return {
-                  ...prevMap,
-                  [sub.topicId]: [...prevList, sub.link]
-                };
-              });
-            }
-          }
           return { ...sub, status };
         }
         return sub;
       })
     );
+
+    const sub = submissions.find((s) => s.id === id);
+    if (!sub) return;
+
+    if (status === "Approved") {
+      if (sub.suggestedTopicTitle) {
+        // add as a custom topic locally (and you may want to persist custom topics in future)
+        addTopic(sub.moduleId || 1, sub.suggestedTopicTitle, sub.suggestedTopicDuration || "15 mins", sub.link);
+      } else if (sub.type === "Video") {
+        try {
+          // call server API to persist the topic video (server will check admin session)
+          await fetch("/api/topic-videos", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json"
+            },
+            body: JSON.stringify({ topicId: sub.topicId, url: sub.link, adminUser: user })
+          });
+          // on success, the server will be the source of truth; we will re-fetch topic videos in background
+          const res = await fetch("/api/topic-videos");
+          if (res.ok) {
+            const data = await res.json();
+            const map: { [topicId: string]: string[] } = {};
+            data.forEach((row: any) => {
+              if (!map[row.topic_id]) map[row.topic_id] = [];
+              map[row.topic_id].push(row.url);
+            });
+            setTopicVideos((prev) => {
+              const merged = { ...prev };
+              Object.keys(map).forEach((t) => {
+                const existing = merged[t] || [];
+                merged[t] = Array.from(new Set([...existing, ...map[t]]));
+              });
+              try {
+                localStorage.setItem(LOCAL_TOPIC_VIDEOS_KEY, JSON.stringify(merged));
+              } catch (e) {}
+              return merged;
+            });
+          }
+        } catch (e) {
+          // fall back to local-only behavior
+          setTopicVideos((prev) => {
+            const prevList = prev[sub.topicId] || [];
+            if (prevList.includes(sub.link)) return prev;
+            return { ...prev, [sub.topicId]: [...prevList, sub.link] };
+          });
+        }
+      }
+    }
   };
 
   const addTopic = (moduleId: number, title: string, duration: string, videoUrl: string) => {
@@ -345,7 +419,9 @@ export const PlatformProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     }));
   };
 
-  const addTopicVideo = (topicId: string, url: string) => {
+  // Updated: addTopicVideo persists to server (Supabase) via API, then updates local cache
+  const addTopicVideo = async (topicId: string, url: string) => {
+    // optimistic local update
     setTopicVideos((prevMap) => {
       const prevList = prevMap[topicId] || [];
       if (prevList.includes(url)) return prevMap;
@@ -354,6 +430,37 @@ export const PlatformProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         [topicId]: [...prevList, url]
       };
     });
+
+    try {
+      await fetch("/api/topic-videos", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ topicId, url, adminUser: user })
+      });
+      // re-fetch authoritative list
+      const res = await fetch("/api/topic-videos");
+      if (res.ok) {
+        const data = await res.json();
+        const map: { [topicId: string]: string[] } = {};
+        data.forEach((row: any) => {
+          if (!map[row.topic_id]) map[row.topic_id] = [];
+          map[row.topic_id].push(row.url);
+        });
+        setTopicVideos((prev) => {
+          const merged = { ...prev };
+          Object.keys(map).forEach((t) => {
+            const existing = merged[t] || [];
+            merged[t] = Array.from(new Set([...existing, ...map[t]]));
+          });
+          try {
+            localStorage.setItem(LOCAL_TOPIC_VIDEOS_KEY, JSON.stringify(merged));
+          } catch (e) {}
+          return merged;
+        });
+      }
+    } catch (e) {
+      // network error: we already did optimistic update
+    }
   };
 
   const removeTopicVideo = (topicId: string, index: number) => {
@@ -365,6 +472,7 @@ export const PlatformProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         [topicId]: updated
       };
     });
+    // TODO: optionally call API to remove from server-side table if needed
   };
   const getModuleProgress = (moduleId: number) => {
     const module = MODULES.find((m) => m.id === moduleId);
