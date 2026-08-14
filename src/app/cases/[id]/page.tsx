@@ -25,7 +25,26 @@ export default function CaseDetailPage() {
   const params = useParams();
   const { toggleBookmark, isBookmarked } = usePlatform();
 
-  const caseId = params.id as string;
+  // Guard against null/array params returned by useParams (TypeScript strictness)
+  const rawId = params?.id;
+  if (!rawId) {
+    return (
+      <div className="flex flex-col min-h-screen bg-bg-light">
+        <Navbar />
+        <div className="flex flex-1 items-center justify-center">
+          <div className="text-center space-y-3">
+            <AlertCircle className="h-10 w-10 text-red-500 mx-auto" />
+            <h1 className="text-lg font-bold">Case Study Not Found</h1>
+            <Link href="/cases" className="text-sm text-accent-cyan hover:underline">
+              Return to Cases
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  const caseId = Array.isArray(rawId) ? rawId[0] : rawId;
   const item = CASE_STUDIES.find((c) => c.id === caseId);
 
   const [expandedQuestion, setExpandedQuestion] = useState<number | null>(null);
@@ -143,7 +162,7 @@ export default function CaseDetailPage() {
                       <div key={idx} className="border border-border-light/60 rounded-xl overflow-hidden">
                         <button
                           onClick={() => toggleQuestion(idx)}
-                          className="w-full flex items-center justify-between p-3 text-left text-xs font-bold text-primary bg-[#F8FAFC]/40 hover:bg-[#F8FAFC] transition-colors focus:outline-none cursor-pointer"
+                          className="w-full flex items-center justify-between p-3 text-left text-xs font-bold text-primary bg-[#F8FAFC]/40 hover:bg-[#F8FAFC] transition-colors focus:outline-none"
                         >
                           <span className="flex-1 pr-4">{q}</span>
                           {isExpanded ? (
