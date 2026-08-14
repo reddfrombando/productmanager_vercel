@@ -61,7 +61,7 @@ export default function TopicPage() {
     topicVideos
   } = usePlatform();
 
-  const topicId = params.id as string;
+  const topicId = (Array.isArray(params?.id) ? params.id[0] : params?.id) || "";
   const topic = allTopics.find((t) => t.id === topicId);
 
   const videosList = topic ? topicVideos[topic.id] || [] : [];
