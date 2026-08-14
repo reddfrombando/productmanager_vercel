@@ -33,7 +33,7 @@ export const Sidebar: React.FC = () => {
 
   const isActive = (href: string) => {
     if (href === "/dashboard") return pathname === href;
-    return pathname.startsWith(href);
+  return pathname?.startsWith(href) ?? false;
   };
 
   return (
