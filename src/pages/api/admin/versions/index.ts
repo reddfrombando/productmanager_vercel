@@ -5,13 +5,11 @@ const SUPABASE_URL = process.env.SUPABASE_URL as string;
 const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY as string;
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  if (!SUPABASE_URL || !SERVICE_KEY) {
-    return res.status(500).json({ error: "Supabase not configured on server" });
-  }
+  if (!SUPABASE_URL || !SERVICE_KEY) return res.status(500).json({ error: "Supabase not configured on server" });
 
   if (req.method === "GET") {
     try {
-      const r = await fetch(`${SUPABASE_URL}/rest/v1/topic_videos?select=topic_id,url,added_by,created_at`, {
+      const r = await fetch(`${SUPABASE_URL}/rest/v1/versions?select=*&order=created_at.desc`, {
         headers: {
           apikey: SERVICE_KEY,
           Authorization: `Bearer ${SERVICE_KEY}`,
@@ -22,24 +20,18 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       const data = await r.json();
       return res.status(200).json(data);
     } catch (e) {
-      return res.status(500).json({ error: "Failed to fetch from Supabase" });
+      return res.status(500).json({ error: "Failed to fetch versions from Supabase" });
     }
   }
 
   if (req.method === "POST") {
-    // Admin-only
-    if (!checkBasicAuth(req)) {
-      return res.status(401).json({ error: "Unauthorized" });
-    }
-
-    const { topicId, url, adminUser } = req.body || {};
-    if (!topicId || !url) {
-      return res.status(400).json({ error: "topicId and url are required" });
-    }
+    if (!checkBasicAuth(req)) return res.status(401).json({ error: "Unauthorized" });
+    const { label, notes, problems, createdBy } = req.body || {};
+    if (!label) return res.status(400).json({ error: "label is required" });
 
     try {
-      const body = { topic_id: topicId, url, added_by: adminUser?.email || null };
-      const r = await fetch(`${SUPABASE_URL}/rest/v1/topic_videos`, {
+      const body = { label, notes: notes || [], problems: problems || [], created_by: createdBy || null };
+      const r = await fetch(`${SUPABASE_URL}/rest/v1/versions`, {
         method: "POST",
         headers: {
           apikey: SERVICE_KEY,
@@ -49,15 +41,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         },
         body: JSON.stringify(body)
       });
-      if (!r.ok) {
-        const txt = await r.text();
-        return res.status(r.status).json({ error: txt });
-      }
+      if (!r.ok) return res.status(r.status).json({ error: await r.text() });
       const data = await r.json();
-      // return inserted row
       return res.status(201).json(data[0] || data);
     } catch (e) {
-      return res.status(500).json({ error: "Failed to insert into Supabase" });
+      return res.status(500).json({ error: "Failed to insert version into Supabase" });
     }
   }
 
