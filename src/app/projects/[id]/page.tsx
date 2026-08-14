@@ -27,7 +27,7 @@ export default function ProjectDetailPage() {
   const router = useRouter();
   const { toggleBookmark, isBookmarked } = usePlatform();
 
-  const projectId = params.id as string;
+  const projectId = (Array.isArray(params?.id) ? params.id[0] : params?.id) || "";
   const project = PORTFOLIO_PROJECTS.find((p) => p.id === projectId);
 
   const [activeTab, setActiveTab] = useState<"overview" | "context" | "requirements" | "evaluation">("overview");
