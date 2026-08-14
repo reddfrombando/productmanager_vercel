@@ -29,7 +29,7 @@ export default function ModulePage() {
   const router = useRouter();
   const { progress, getModuleProgress, toggleTopicCompletion, allTopics } = usePlatform();
 
-  const moduleId = Number(params.id);
+  const moduleId = Number(Array.isArray(params?.id) ? params.id[0] : params?.id);
   const module = MODULES.find((m) => m.id === moduleId);
 
   // Quiz state
