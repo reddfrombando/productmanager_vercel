@@ -23,7 +23,7 @@ function LoginContent() {
 
   // Sync tab with URL search parameter if present
   useEffect(() => {
-    const tabParam = searchParams.get("tab");
+    const tabParam = searchParams?.get("tab");
     if (tabParam === "signup") {
       setActiveTab("signup");
     } else {
