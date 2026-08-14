@@ -305,7 +305,7 @@ export default function AdminDashboardPage() {
                                   </button>
                                   <button
                                     onClick={() => handleApprove(sub.id)}
-                                    className="h-7 w-7 rounded-lg border border-emerald-200 text-emerald-500 hover:bg-emerald-50 flex items-center justify-center cursor-pointer transition-colors [...]"
+                                    className="h-7 w-7 rounded-lg border border-emerald-200 text-emerald-500 hover:bg-emerald-50 flex items-center justify-center cursor-pointer transition-colors"
                                     title="Approve"
                                   >
                                     <Check className="h-4 w-4" />
@@ -376,7 +376,7 @@ export default function AdminDashboardPage() {
                                 setSelectedModuleId(mod.id);
                                 setShowAddTopicFormModId(isAddingTopic ? null : mod.id);
                               }}
-                              className="bg-accent-purple/5 hover:bg-accent-purple text-accent-purple hover:text-white border border-accent-purple/20 px-2.5 py-1 rounded-lg text-[9px] font-bold t[...]
+                              className="bg-accent-purple/5 hover:bg-accent-purple text-accent-purple hover:text-white border border-accent-purple/20 px-2.5 py-1 rounded-lg text-[9px] font-bold"
                             >
                               + Add Topic
                             </button>
