@@ -1096,11 +1096,10 @@ export const PlatformProvider: React.FC<{
                   url:
                     submission.link,
 
-                  adminUser: {
-                    email:
-                      user?.email ||
-                      username
-                  }
+    adminUser: {
+  email:
+    user?.email || ""
+}
                 })
             }
           );
