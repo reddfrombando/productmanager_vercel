@@ -1,66 +1,127 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { checkBasicAuth } from "@/lib/basicAuth";
 
-const SUPABASE_URL = process.env.SUPABASE_URL as string;
-const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY as string;
+const SUPABASE_URL = process.env.SUPABASE_URL;
+const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+export default async function handler(
+  req: NextApiRequest,
+  res: NextApiResponse
+) {
   if (!SUPABASE_URL || !SERVICE_KEY) {
-    return res.status(500).json({ error: "Supabase not configured on server" });
+    return res.status(500).json({
+      error: "Supabase is not configured."
+    });
   }
+
+  const headers = {
+    apikey: SERVICE_KEY,
+    Authorization: `Bearer ${SERVICE_KEY}`,
+    "Content-Type": "application/json"
+  };
+
+  // ----------------------------------------------------------
+  // GET CUSTOM TOPICS
+  // ----------------------------------------------------------
 
   if (req.method === "GET") {
     try {
-      const r = await fetch(`${SUPABASE_URL}/rest/v1/topic_videos?select=topic_id,url,added_by,created_at`, {
-        headers: {
-          apikey: SERVICE_KEY,
-          Authorization: `Bearer ${SERVICE_KEY}`,
-          Accept: "application/json"
+      const response = await fetch(
+        `${SUPABASE_URL}/rest/v1/topic_content?select=*&order=created_at.asc`,
+        {
+          headers
         }
+      );
+
+      if (!response.ok) {
+        return res.status(response.status).json({
+          error: await response.text()
+        });
+      }
+
+      return res.status(200).json(await response.json());
+    } catch {
+      return res.status(500).json({
+        error: "Failed to load topics."
       });
-      if (!r.ok) return res.status(r.status).json({ error: await r.text() });
-      const data = await r.json();
-      return res.status(200).json(data);
-    } catch (e) {
-      return res.status(500).json({ error: "Failed to fetch from Supabase" });
     }
   }
+
+  // ----------------------------------------------------------
+  // CREATE / UPDATE TOPIC
+  // ----------------------------------------------------------
 
   if (req.method === "POST") {
-    // Admin-only
     if (!checkBasicAuth(req)) {
-      return res.status(401).json({ error: "Unauthorized" });
+      return res.status(401).json({
+        error: "Admin authentication required."
+      });
     }
 
-    const { topicId, url, adminUser } = req.body || {};
-    if (!topicId || !url) {
-      return res.status(400).json({ error: "topicId and url are required" });
+    const {
+      id,
+      moduleId,
+      title,
+      duration,
+      youtubeId,
+      notesTemplate,
+      exercise,
+      adminUser
+    } = req.body || {};
+
+    if (!id || !moduleId || !title) {
+      return res.status(400).json({
+        error: "id, moduleId and title are required."
+      });
     }
+
+    const topic = {
+      id: String(id),
+      module_id: Number(moduleId),
+      title: String(title),
+      duration: duration || "15 mins",
+      youtube_id: youtubeId || null,
+      notes_template:
+        notesTemplate ||
+        `## Lecture Notes: ${title}\n\n- Key Concept 1:\n- Key Concept 2:\n- Strategic Takeaway:\n`,
+      exercise:
+        exercise ||
+        "Reflect on how this concept impacts product management.",
+      created_by: adminUser?.email || null,
+      updated_by: adminUser?.email || null
+    };
 
     try {
-      const body = { topic_id: topicId, url, added_by: adminUser?.email || null };
-      const r = await fetch(`${SUPABASE_URL}/rest/v1/topic_videos`, {
-        method: "POST",
-        headers: {
-          apikey: SERVICE_KEY,
-          Authorization: `Bearer ${SERVICE_KEY}`,
-          "Content-Type": "application/json",
-          Prefer: "return=representation"
-        },
-        body: JSON.stringify(body)
-      });
-      if (!r.ok) {
-        const txt = await r.text();
-        return res.status(r.status).json({ error: txt });
+      const response = await fetch(
+        `${SUPABASE_URL}/rest/v1/topic_content`,
+        {
+          method: "POST",
+          headers: {
+            ...headers,
+            Prefer: "resolution=merge-duplicates,return=representation"
+          },
+          body: JSON.stringify(topic)
+        }
+      );
+
+      if (!response.ok) {
+        return res.status(response.status).json({
+          error: await response.text()
+        });
       }
-      const data = await r.json();
-      // return inserted row
-      return res.status(201).json(data[0] || data);
-    } catch (e) {
-      return res.status(500).json({ error: "Failed to insert into Supabase" });
+
+      const data = await response.json();
+
+      return res.status(201).json(data?.[0] || data);
+    } catch {
+      return res.status(500).json({
+        error: "Failed to save topic."
+      });
     }
   }
 
-  res.setHeader("Allow", "GET,POST");
-  res.status(405).end("Method Not Allowed");
+  res.setHeader("Allow", "GET, POST");
+  return res.status(405).json({
+    error: "Method not allowed."
+  });
 }
