@@ -12,12 +12,15 @@ const SERVICE_KEY =
   process.env.SUPABASE_SERVICE_ROLE_KEY as string;
 
 
+/* ============================================================
+   TYPES
+============================================================ */
+
 type SyncResult = {
   attempted: number;
   synced: number;
   verified: number;
 };
-
 
 type SyncResults = {
   topics: SyncResult;
@@ -27,14 +30,26 @@ type SyncResults = {
 };
 
 
+/* ============================================================
+   SUPABASE HEADERS
+============================================================ */
+
 function supabaseHeaders() {
   return {
     apikey: SERVICE_KEY,
-    Authorization: `Bearer ${SERVICE_KEY}`,
-    "Content-Type": "application/json"
+
+    Authorization:
+      `Bearer ${SERVICE_KEY}`,
+
+    "Content-Type":
+      "application/json"
   };
 }
 
+
+/* ============================================================
+   EMPTY RESULT
+============================================================ */
 
 function emptyResult(): SyncResult {
   return {
@@ -52,7 +67,11 @@ function emptyResult(): SyncResult {
 async function upsertRows(
   table: string,
   rows: any[]
-) {
+): Promise<{
+  attempted: number;
+  synced: number;
+}> {
+
   if (!rows.length) {
     return {
       attempted: 0,
@@ -61,25 +80,27 @@ async function upsertRows(
   }
 
 
-  const response = await fetch(
-    `${SUPABASE_URL}/rest/v1/${table}`,
-    {
-      method: "POST",
+  const response =
+    await fetch(
+      `${SUPABASE_URL}/rest/v1/${table}`,
+      {
+        method: "POST",
 
-      headers: {
-        ...supabaseHeaders(),
+        headers: {
+          ...supabaseHeaders(),
 
-        Prefer:
-          "resolution=merge-duplicates,return=representation"
-      },
+          Prefer:
+            "resolution=merge-duplicates,return=representation"
+        },
 
-      body:
-        JSON.stringify(rows)
-    }
-  );
+        body:
+          JSON.stringify(rows)
+      }
+    );
 
 
   if (!response.ok) {
+
     const errorText =
       await response.text();
 
@@ -106,24 +127,253 @@ async function upsertRows(
 
 
 /* ============================================================
+   SPECIAL TOPIC VIDEO SYNC
+
+   IMPORTANT:
+
+   topic_videos has a unique constraint:
+
+   (topic_id, url)
+
+   If the video already exists, that is NOT a failure.
+
+   We count it as successfully synced.
+
+============================================================ */
+
+async function upsertTopicVideos(
+  rows: any[]
+): Promise<{
+  attempted: number;
+  synced: number;
+}> {
+
+  if (!rows.length) {
+    return {
+      attempted: 0,
+      synced: 0
+    };
+  }
+
+
+  let synced = 0;
+
+
+  for (
+    const row of rows
+  ) {
+
+    const topicId =
+      String(
+        row.topic_id
+      );
+
+    const url =
+      String(
+        row.url
+      );
+
+
+    /* --------------------------------------------------------
+       CHECK WHETHER VIDEO ALREADY EXISTS
+    -------------------------------------------------------- */
+
+    const checkResponse =
+      await fetch(
+        `${SUPABASE_URL}/rest/v1/topic_videos?topic_id=eq.${encodeURIComponent(
+          topicId
+        )}&url=eq.${encodeURIComponent(
+          url
+        )}&select=id`,
+        {
+          method: "GET",
+
+          headers:
+            supabaseHeaders()
+        }
+      );
+
+
+    if (!checkResponse.ok) {
+
+      const errorText =
+        await checkResponse.text();
+
+      throw new Error(
+        `Could not check existing topic video: ${errorText}`
+      );
+    }
+
+
+    const existing =
+      await checkResponse.json();
+
+
+    /* --------------------------------------------------------
+       VIDEO ALREADY EXISTS
+
+       This is SUCCESSFUL.
+
+       We do NOT insert it again.
+    -------------------------------------------------------- */
+
+    if (
+      Array.isArray(
+        existing
+      ) &&
+      existing.length > 0
+    ) {
+
+      synced++;
+
+      continue;
+    }
+
+
+    /* --------------------------------------------------------
+       VIDEO DOES NOT EXIST
+       
+       INSERT IT.
+    -------------------------------------------------------- */
+
+    const insertResponse =
+      await fetch(
+        `${SUPABASE_URL}/rest/v1/topic_videos`,
+        {
+          method: "POST",
+
+          headers: {
+            ...supabaseHeaders(),
+
+            Prefer:
+              "return=representation"
+          },
+
+          body:
+            JSON.stringify(
+              row
+            )
+        }
+      );
+
+
+    /* --------------------------------------------------------
+       INSERT FAILED
+    -------------------------------------------------------- */
+
+    if (
+      !insertResponse.ok
+    ) {
+
+      const errorText =
+        await insertResponse.text();
+
+
+      /* ------------------------------------------------------
+         HANDLE DUPLICATE RACE CONDITION
+
+         It is possible another request inserted
+         the video between our check and insert.
+
+         If that happens, check again.
+      ------------------------------------------------------ */
+
+      if (
+        errorText.includes(
+          "23505"
+        ) ||
+        errorText.includes(
+          "duplicate key"
+        )
+      ) {
+
+        const verifyExisting =
+          await fetch(
+            `${SUPABASE_URL}/rest/v1/topic_videos?topic_id=eq.${encodeURIComponent(
+              topicId
+            )}&url=eq.${encodeURIComponent(
+              url
+            )}&select=id`,
+            {
+              method: "GET",
+
+              headers:
+                supabaseHeaders()
+            }
+          );
+
+
+        if (
+          verifyExisting.ok
+        ) {
+
+          const verified =
+            await verifyExisting.json();
+
+
+          if (
+            Array.isArray(
+              verified
+            ) &&
+            verified.length > 0
+          ) {
+
+            synced++;
+
+            continue;
+          }
+        }
+      }
+
+
+      throw new Error(
+        `topic_videos insert failed: ${errorText}`
+      );
+    }
+
+
+    /* --------------------------------------------------------
+       NEW VIDEO INSERTED SUCCESSFULLY
+    -------------------------------------------------------- */
+
+    synced++;
+  }
+
+
+  return {
+    attempted:
+      rows.length,
+
+    synced
+  };
+}
+
+
+/* ============================================================
    VERIFY TOPICS
 ============================================================ */
 
 async function verifyTopics(
   rows: any[]
 ) {
-  if (!rows.length)
+
+  if (!rows.length) {
     return 0;
+  }
 
 
   let verified = 0;
 
 
-  for (const row of rows) {
+  for (
+    const row of rows
+  ) {
 
     const id =
       encodeURIComponent(
-        String(row.id)
+        String(
+          row.id
+        )
       );
 
 
@@ -138,6 +388,7 @@ async function verifyTopics(
 
 
     if (!response.ok) {
+
       throw new Error(
         `Topic verification failed: ${await response.text()}`
       );
@@ -149,9 +400,12 @@ async function verifyTopics(
 
 
     if (
-      Array.isArray(data) &&
+      Array.isArray(
+        data
+      ) &&
       data.length > 0
     ) {
+
       verified++;
     }
   }
@@ -168,18 +422,24 @@ async function verifyTopics(
 async function verifyContributions(
   rows: any[]
 ) {
-  if (!rows.length)
+
+  if (!rows.length) {
     return 0;
+  }
 
 
   let verified = 0;
 
 
-  for (const row of rows) {
+  for (
+    const row of rows
+  ) {
 
     const id =
       encodeURIComponent(
-        String(row.id)
+        String(
+          row.id
+        )
       );
 
 
@@ -194,6 +454,7 @@ async function verifyContributions(
 
 
     if (!response.ok) {
+
       throw new Error(
         `Contribution verification failed: ${await response.text()}`
       );
@@ -205,9 +466,12 @@ async function verifyContributions(
 
 
     if (
-      Array.isArray(data) &&
+      Array.isArray(
+        data
+      ) &&
       data.length > 0
     ) {
+
       verified++;
     }
   }
@@ -224,24 +488,32 @@ async function verifyContributions(
 async function verifyVideos(
   rows: any[]
 ) {
-  if (!rows.length)
+
+  if (!rows.length) {
     return 0;
+  }
 
 
   let verified = 0;
 
 
-  for (const row of rows) {
+  for (
+    const row of rows
+  ) {
 
     const topicId =
       encodeURIComponent(
-        String(row.topic_id)
+        String(
+          row.topic_id
+        )
       );
 
 
     const url =
       encodeURIComponent(
-        String(row.url)
+        String(
+          row.url
+        )
       );
 
 
@@ -256,6 +528,7 @@ async function verifyVideos(
 
 
     if (!response.ok) {
+
       throw new Error(
         `Video verification failed: ${await response.text()}`
       );
@@ -267,9 +540,12 @@ async function verifyVideos(
 
 
     if (
-      Array.isArray(data) &&
+      Array.isArray(
+        data
+      ) &&
       data.length > 0
     ) {
+
       verified++;
     }
   }
@@ -281,37 +557,45 @@ async function verifyVideos(
 
 /* ============================================================
    VERIFY CALENDAR
-   IMPORTANT:
-   Uses EXISTING calendar_events table.
 ============================================================ */
 
 async function verifyCalendar(
   rows: any[]
 ) {
-  if (!rows.length)
+
+  if (!rows.length) {
     return 0;
+  }
 
 
   let verified = 0;
 
 
-  for (const row of rows) {
+  for (
+    const row of rows
+  ) {
 
     const userId =
       encodeURIComponent(
-        String(row.user_id)
+        String(
+          row.user_id
+        )
       );
 
 
     const title =
       encodeURIComponent(
-        String(row.title)
+        String(
+          row.title
+        )
       );
 
 
     const startDate =
       encodeURIComponent(
-        String(row.start_date)
+        String(
+          row.start_date
+        )
       );
 
 
@@ -326,6 +610,7 @@ async function verifyCalendar(
 
 
     if (!response.ok) {
+
       throw new Error(
         `Calendar verification failed: ${await response.text()}`
       );
@@ -337,9 +622,12 @@ async function verifyCalendar(
 
 
     if (
-      Array.isArray(data) &&
+      Array.isArray(
+        data
+      ) &&
       data.length > 0
     ) {
+
       verified++;
     }
   }
@@ -358,18 +646,24 @@ export default async function handler(
   res: NextApiResponse
 ) {
 
-  /* ----------------------------------------------------------
+  /* ==========================================================
      METHOD
-  ---------------------------------------------------------- */
+  ========================================================== */
 
-  if (req.method !== "POST") {
+  if (
+    req.method !== "POST"
+  ) {
 
     res.setHeader(
       "Allow",
       "POST"
     );
 
-    return res.status(405).json({
+
+    return res.status(
+      405
+    ).json({
+
       success: false,
 
       error:
@@ -378,13 +672,20 @@ export default async function handler(
   }
 
 
-  /* ----------------------------------------------------------
-     ADMIN AUTH
-  ---------------------------------------------------------- */
+  /* ==========================================================
+     ADMIN AUTHENTICATION
+  ========================================================== */
 
-  if (!checkBasicAuth(req)) {
+  if (
+    !checkBasicAuth(
+      req
+    )
+  ) {
 
-    return res.status(401).json({
+    return res.status(
+      401
+    ).json({
+
       success: false,
 
       error:
@@ -393,16 +694,19 @@ export default async function handler(
   }
 
 
-  /* ----------------------------------------------------------
-     SUPABASE CONFIG
-  ---------------------------------------------------------- */
+  /* ==========================================================
+     SUPABASE CONFIGURATION
+  ========================================================== */
 
   if (
     !SUPABASE_URL ||
     !SERVICE_KEY
   ) {
 
-    return res.status(500).json({
+    return res.status(
+      500
+    ).json({
+
       success: false,
 
       error:
@@ -411,13 +715,17 @@ export default async function handler(
   }
 
 
+  /* ==========================================================
+     READ REQUEST BODY
+  ========================================================== */
+
   const body =
     req.body || {};
 
 
-  /* ----------------------------------------------------------
+  /* ==========================================================
      READ ADMIN CACHE
-  ---------------------------------------------------------- */
+  ========================================================== */
 
   const customTopics =
     Array.isArray(
@@ -453,7 +761,13 @@ export default async function handler(
 
   try {
 
-    const results: SyncResults = {
+    /* ========================================================
+       INITIAL RESULTS
+    ======================================================== */
+
+    const results:
+      SyncResults = {
+
       topics:
         emptyResult(),
 
@@ -474,13 +788,16 @@ export default async function handler(
 
     const topicRows =
       customTopics
+
         .filter(
           (topic: any) =>
             topic?.id &&
             topic?.title
         )
+
         .map(
           (topic: any) => ({
+
             id:
               String(
                 topic.id
@@ -550,6 +867,7 @@ export default async function handler(
 
     const contributionRows =
       submissions
+
         .filter(
           (sub: any) =>
             sub?.id &&
@@ -557,8 +875,10 @@ export default async function handler(
             sub?.resourceTitle &&
             sub?.link
         )
+
         .map(
           (sub: any) => ({
+
             id:
               String(
                 sub.id
@@ -655,13 +975,19 @@ export default async function handler(
        VIDEOS
     ======================================================== */
 
-    const videoRows: any[] = [];
+    const videoRows:
+      any[] = [];
 
 
     Object.entries(
       topicVideos
     ).forEach(
-      ([topicId, videos]) => {
+      (
+        [
+          topicId,
+          videos
+        ]
+      ) => {
 
         if (
           !Array.isArray(
@@ -673,13 +999,17 @@ export default async function handler(
 
 
         videos.forEach(
-          (url) => {
+          (
+            url
+          ) => {
 
-            if (!url)
+            if (!url) {
               return;
+            }
 
 
             videoRows.push({
+
               topic_id:
                 String(
                   topicId
@@ -699,22 +1029,38 @@ export default async function handler(
     );
 
 
+    /* --------------------------------------------------------
+       REMOVE DUPLICATES FROM BROWSER CACHE
+    -------------------------------------------------------- */
+
     const uniqueVideoRows =
       Array.from(
+
         new Map(
+
           videoRows.map(
             (row) => [
+
               `${row.topic_id}::${row.url}`,
+
               row
             ]
           )
+
         ).values()
+
       );
 
 
+    /* --------------------------------------------------------
+       SYNC VIDEOS
+
+       IMPORTANT:
+       Existing videos count as synced.
+    -------------------------------------------------------- */
+
     const videoWrite =
-      await upsertRows(
-        "topic_videos",
+      await upsertTopicVideos(
         uniqueVideoRows
       );
 
@@ -735,22 +1081,21 @@ export default async function handler(
 
     /* ========================================================
        CALENDAR
-       
-       IMPORTANT:
-       YOUR DATABASE TABLE IS calendar_events
-       NOT study_calendar_events.
     ======================================================== */
 
     const calendarRows =
       calendarEvents
+
         .filter(
           (event: any) =>
             event?.userId &&
             event?.title &&
             event?.startDate
         )
+
         .map(
           (event: any) => ({
+
             user_id:
               String(
                 event.userId
@@ -807,7 +1152,7 @@ export default async function handler(
 
 
     /* ========================================================
-       FINAL COUNTS
+       TOTALS
     ======================================================== */
 
     const totalAttempted =
@@ -832,16 +1177,19 @@ export default async function handler(
 
 
     /* ========================================================
-       VERY IMPORTANT:
+       NO DATA = FAILURE
        
-       ZERO RECORDS MUST NEVER BE CALLED SUCCESS.
+       This prevents an empty browser cache from
+       being incorrectly reported as successful.
     ======================================================== */
 
     if (
       totalAttempted === 0
     ) {
 
-      return res.status(400).json({
+      return res.status(
+        400
+      ).json({
 
         success: false,
 
@@ -851,6 +1199,7 @@ export default async function handler(
         results,
 
         totals: {
+
           attempted:
             totalAttempted,
 
@@ -865,7 +1214,12 @@ export default async function handler(
 
 
     /* ========================================================
-       SUCCESS ONLY WHEN EVERY RECORD IS VERIFIED
+       FINAL SUCCESS CHECK
+       
+       SUCCESS requires:
+
+       attempted = synced
+       attempted = verified
     ======================================================== */
 
     const success =
@@ -877,7 +1231,9 @@ export default async function handler(
 
     if (!success) {
 
-      return res.status(500).json({
+      return res.status(
+        500
+      ).json({
 
         success: false,
 
@@ -887,6 +1243,7 @@ export default async function handler(
         results,
 
         totals: {
+
           attempted:
             totalAttempted,
 
@@ -904,12 +1261,14 @@ export default async function handler(
        TRUE SUCCESS
     ======================================================== */
 
-    return res.status(200).json({
+    return res.status(
+      200
+    ).json({
 
       success: true,
 
       message:
-        "SYNC SUCCESSFUL — Admin cache data was added to Supabase and verified.",
+        "SYNC SUCCESSFUL — Admin cache data is stored in Supabase and every record was verified.",
 
       results,
 
@@ -927,7 +1286,9 @@ export default async function handler(
     });
 
 
-  } catch (error: any) {
+  } catch (
+    error: any
+  ) {
 
     console.error(
       "ADMIN CACHE SYNC ERROR:",
@@ -935,7 +1296,9 @@ export default async function handler(
     );
 
 
-    return res.status(500).json({
+    return res.status(
+      500
+    ).json({
 
       success: false,
 
