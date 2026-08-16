@@ -35,7 +35,7 @@ export default function ContributePage() {
     }
   }, [selectedModuleId, allTopics]);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (   e: React.FormEvent ) => {   e.preventDefault();    if (     !resourceTitle ||     !link ||     !contributorName ||     !contributorEmail   ) {     alert("Please fill out all fields.");     return;   }    if (     topicId === "suggest-new" &&     !suggestedTopicTitle.trim()   ) {     alert(       "Please enter a title for the suggested topic."     );     return;   }    try {     await addSubmission({       topicId,       resourceTitle,       link,       type,       contributorName,       contributorEmail,        ...(topicId === "suggest-new"         ? {             suggestedTopicTitle:               suggestedTopicTitle.trim(),              suggestedTopicDuration:               suggestedTopicDuration.trim() ||               "15 mins",              moduleId:               Number(selectedModuleId)           }         : {})     });      setSuccess(true);      confetti({       particleCount: 50,       spread: 40,       origin: { y: 0.8 }     });      setResourceTitle("");     setLink("");     setContributorName("");     setContributorEmail("");     setSuggestedTopicTitle("");     setSuggestedTopicDuration(       "15 mins"     );   } catch (error) {     console.error(error);      alert(       "Your contribution could not be saved. Please try again."     );   } };
     e.preventDefault();
     if (!resourceTitle || !link || !contributorName || !contributorEmail) {
       alert("Please fill out all fields.");
