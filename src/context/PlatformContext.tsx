@@ -1024,13 +1024,10 @@ export const PlatformProvider: React.FC<{
           {
             method: "PATCH",
 
-            headers: {
-              "Content-Type":
-                "application/json",
-
-              Authorization:
-                auth
-            },
+     headers: {
+  "Content-Type":
+    "application/json"
+},
 
             body:
               JSON.stringify({
