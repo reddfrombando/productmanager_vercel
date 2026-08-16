@@ -21,7 +21,11 @@ import {
   Trash2,
   Save,
   Edit,
-  Play
+  Play,
+  RefreshCw,
+  CheckCircle2,
+  XCircle,
+  Database
 } from "lucide-react";
 import confetti from "canvas-confetti";
 import dynamic from "next/dynamic";
@@ -74,6 +78,22 @@ export default function AdminDashboardPage() {
 
   const [newVideoUrls, setNewVideoUrls] = useState<Record<string, string>>({});
   const [previewVideoUrl, setPreviewVideoUrl] = useState("");
+
+  const [syncing, setSyncing] = useState(false);
+
+const [syncStatus, setSyncStatus] = useState<
+  "idle" | "success" | "failed"
+>("idle");
+
+const [syncMessage, setSyncMessage] =
+  useState("");
+
+const [syncTotals, setSyncTotals] =
+  useState<{
+    attempted: number;
+    synced: number;
+    verified: number;
+  } | null>(null);
 
   // Protect route
   useEffect(() => {
@@ -128,6 +148,241 @@ export default function AdminDashboardPage() {
     updateSubmissionStatus(id, "Rejected");
   };
 
+  const handleAdminCacheSync =
+  async () => {
+    if (syncing) return;
+
+    setSyncing(true);
+
+    setSyncStatus("idle");
+
+    setSyncMessage("");
+
+    setSyncTotals(null);
+
+    try {
+      /*
+       * ------------------------------------------------------
+       * READ ONLY ADMIN/CATALOG CACHE
+       * ------------------------------------------------------
+       *
+       * We deliberately DO NOT read:
+       *
+       * pm_<email>_progress
+       * pm_<email>_notes
+       * pm_<email>_bookmarks
+       * pm_<email>_streak
+       * pm_<email>_last_study_date
+       *
+       * Those belong to individual learners.
+       */
+
+      let customTopics: any[] = [];
+
+      let submissions: any[] = [];
+
+      let topicVideos: Record<
+        string,
+        string[]
+      > = {};
+
+      let calendarEvents: any[] = [];
+
+
+      try {
+        customTopics =
+          JSON.parse(
+            localStorage.getItem(
+              "pm_custom_topics"
+            ) || "[]"
+          );
+      } catch {
+        customTopics = [];
+      }
+
+
+      try {
+        submissions =
+          JSON.parse(
+            localStorage.getItem(
+              "pm_submissions"
+            ) || "[]"
+          );
+      } catch {
+        submissions = [];
+      }
+
+
+      try {
+        topicVideos =
+          JSON.parse(
+            localStorage.getItem(
+              "pm_topic_videos"
+            ) || "{}"
+          );
+      } catch {
+        topicVideos = {};
+      }
+
+
+      /*
+       * Calendar support is included now so the
+       * same sync system works once calendar
+       * drag/drop is enabled.
+       */
+
+      try {
+        calendarEvents =
+          JSON.parse(
+            localStorage.getItem(
+              "pm_calendar_events"
+            ) || "[]"
+          );
+      } catch {
+        calendarEvents = [];
+      }
+
+
+      /*
+       * ------------------------------------------------------
+       * ASK FOR SERVER-SIDE ADMIN CREDENTIALS
+       * ------------------------------------------------------
+       *
+       * Your current application uses client-side
+       * demo authentication, so the browser cannot
+       * safely read ADMIN_PASSWORD from Vercel.
+       *
+       * The credentials are sent only through HTTPS
+       * to the protected API route.
+       */
+
+      const adminUsername =
+        window.prompt(
+          "Admin username"
+        );
+
+      if (!adminUsername) {
+        throw new Error(
+          "Admin sync cancelled."
+        );
+      }
+
+
+      const adminPassword =
+        window.prompt(
+          "Admin password"
+        );
+
+      if (!adminPassword) {
+        throw new Error(
+          "Admin sync cancelled."
+        );
+      }
+
+
+      const authorization =
+        "Basic " +
+        window.btoa(
+          `${adminUsername}:${adminPassword}`
+        );
+
+
+      /*
+       * ------------------------------------------------------
+       * SEND CACHE TO SERVER
+       * ------------------------------------------------------
+       */
+
+      const response =
+        await fetch(
+          "/api/admin-sync",
+          {
+            method: "POST",
+
+            headers: {
+              "Content-Type":
+                "application/json",
+
+              Authorization:
+                authorization
+            },
+
+            body: JSON.stringify({
+              customTopics,
+              submissions,
+              topicVideos,
+              calendarEvents
+            })
+          }
+        );
+
+
+      const data =
+        await response.json();
+
+
+      /*
+       * ------------------------------------------------------
+       * API MUST CONFIRM SUPABASE VERIFICATION
+       * ------------------------------------------------------
+       */
+
+      if (
+        !response.ok ||
+        !data.success
+      ) {
+        setSyncStatus("failed");
+
+        setSyncMessage(
+          data?.error ||
+            "Supabase verification failed. The cache was not confirmed."
+        );
+
+        if (data?.totals) {
+          setSyncTotals(
+            data.totals
+          );
+        }
+
+        return;
+      }
+
+
+      /*
+       * ------------------------------------------------------
+       * SUCCESS
+       * ------------------------------------------------------
+       */
+
+      setSyncStatus("success");
+
+      setSyncMessage(
+        "Admin cache successfully synced and verified in Supabase."
+      );
+
+      setSyncTotals(
+        data.totals
+      );
+
+
+    } catch (error: any) {
+      console.error(
+        "Admin cache sync failed:",
+        error
+      );
+
+      setSyncStatus("failed");
+
+      setSyncMessage(
+        error?.message ||
+          "Admin cache sync failed."
+      );
+
+    } finally {
+      setSyncing(false);
+    }
+  };
+
   return (
     <div className="flex flex-col min-h-screen bg-bg-light">
       <Navbar />
@@ -179,7 +434,7 @@ export default function AdminDashboardPage() {
           </div>
 
           {/* Metrics summary */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <div className="bg-white border border-border-light rounded-2xl p-5 shadow-premium flex items-center space-x-4">
               <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-accent-purple/10 text-accent-purple">
                 <Users className="h-5 w-5" />
@@ -210,7 +465,133 @@ export default function AdminDashboardPage() {
               </div>
             </div>
           </div>
+{/* ADMIN CACHE SYNC */}
+<div
+  className={`bg-white border rounded-2xl p-5 shadow-premium ${
+    syncStatus === "success"
+      ? "border-emerald-200"
+      : syncStatus === "failed"
+      ? "border-red-200"
+      : "border-border-light"
+  }`}
+>
+  <div className="flex items-start justify-between gap-3">
+    <div className="flex items-center space-x-3">
+      <span
+        className={`flex h-10 w-10 items-center justify-center rounded-xl ${
+          syncStatus === "success"
+            ? "bg-emerald-50 text-emerald-600"
+            : syncStatus === "failed"
+            ? "bg-red-50 text-red-600"
+            : "bg-accent-purple/10 text-accent-purple"
+        }`}
+      >
+        {syncStatus === "success" ? (
+          <CheckCircle2 className="h-5 w-5" />
+        ) : syncStatus === "failed" ? (
+          <XCircle className="h-5 w-5" />
+        ) : (
+          <Database className="h-5 w-5" />
+        )}
+      </span>
 
+      <div>
+        <div className="text-[10px] font-bold text-primary/45 uppercase tracking-wider">
+          Admin Data Sync
+        </div>
+
+        <div
+          className={`text-sm font-black ${
+            syncStatus === "success"
+              ? "text-emerald-600"
+              : syncStatus === "failed"
+              ? "text-red-600"
+              : "text-primary"
+          }`}
+        >
+          {syncing
+            ? "Syncing..."
+            : syncStatus === "success"
+            ? "SYNC SUCCESSFUL"
+            : syncStatus === "failed"
+            ? "SYNC FAILED"
+            : "Not synced"}
+        </div>
+      </div>
+    </div>
+
+    <button
+      type="button"
+      onClick={handleAdminCacheSync}
+      disabled={syncing}
+      className="h-8 w-8 rounded-lg border border-border-light flex items-center justify-center hover:bg-bg-light disabled:opacity-50 disabled:cursor-not-allowed"
+      title="Sync admin browser cache to Supabase"
+    >
+      <RefreshCw
+        className={`h-4 w-4 ${
+          syncing
+            ? "animate-spin"
+            : ""
+        }`}
+      />
+    </button>
+  </div>
+
+  {/* Status message */}
+  {syncMessage && (
+    <div
+      className={`mt-3 text-[9px] leading-relaxed font-semibold ${
+        syncStatus === "success"
+          ? "text-emerald-600"
+          : "text-red-600"
+      }`}
+    >
+      {syncMessage}
+    </div>
+  )}
+
+  {/* Verification numbers */}
+  {syncTotals && (
+    <div className="mt-3 pt-3 border-t border-border-light/70 grid grid-cols-3 gap-2 text-center">
+      <div>
+        <div className="text-sm font-black text-primary">
+          {syncTotals.attempted}
+        </div>
+
+        <div className="text-[8px] uppercase font-bold text-primary/35">
+          Read
+        </div>
+      </div>
+
+      <div>
+        <div className="text-sm font-black text-primary">
+          {syncTotals.synced}
+        </div>
+
+        <div className="text-[8px] uppercase font-bold text-primary/35">
+          Saved
+        </div>
+      </div>
+
+      <div>
+        <div
+          className={`text-sm font-black ${
+            syncTotals.verified ===
+            syncTotals.attempted
+              ? "text-emerald-600"
+              : "text-red-600"
+          }`}
+        >
+          {syncTotals.verified}
+        </div>
+
+        <div className="text-[8px] uppercase font-bold text-primary/35">
+          Verified
+        </div>
+      </div>
+    </div>
+  )}
+</div>
           {/* Tab contents */}
           {activeTab === "queue" && (
             <div className="bg-white border border-border-light rounded-2xl shadow-premium overflow-hidden">
