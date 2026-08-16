@@ -1018,31 +1018,6 @@ export const PlatformProvider: React.FC<{
        * this prompt anymore.
        */
 
-      const username =
-        window.prompt(
-          "Admin username"
-        );
-
-      const password =
-        window.prompt(
-          "Admin password"
-        );
-
-      if (
-        !username ||
-        !password
-      ) {
-        return;
-      }
-
-
-      const auth =
-        "Basic " +
-        btoa(
-          `${username}:${password}`
-        );
-
-
       const response =
         await fetch(
           "/api/contributions",
