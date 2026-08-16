@@ -67,7 +67,81 @@ export default function AdminDashboardPage() {
     addTopicVideo,
     removeTopicVideo
   } = usePlatform();
+const handleCheckAndSync = async (
+  topicId: string,
+  video: string
+) => {
+  try {
+    const buttonKey = `${topicId}-${video}`;
 
+    setSyncingVideos((prev) => ({
+      ...prev,
+      [buttonKey]: true
+    }));
+
+    const response = await fetch(
+      "/api/topic-videos",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          topicId,
+          url: video,
+          adminUser: {
+            email: user?.email || "admin"
+          }
+        })
+      }
+    );
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      console.error(
+        "Video sync failed:",
+        data
+      );
+
+      alert(
+        `Could not sync video: ${
+          data?.error || "Unknown error"
+        }`
+      );
+
+      return;
+    }
+
+    if (data.alreadyExists) {
+      alert(
+        "✓ Video is already present in the database."
+      );
+    } else {
+      alert(
+        "✓ Video was added to the database."
+      );
+    }
+
+  } catch (error) {
+    console.error(
+      "Video sync error:",
+      error
+    );
+
+    alert(
+      "Could not check/sync this video."
+    );
+
+  } finally {
+    const buttonKey = `${topicId}-${video}`;
+
+    setSyncingVideos((prev) => ({
+      ...prev,
+      [buttonKey]: false
+    }));
+  }
+};
   const [activeTab, setActiveTab] = useState<"queue" | "syllabus">("queue");
   const [selectedModuleId, setSelectedModuleId] = useState<number | null>(null);
 
