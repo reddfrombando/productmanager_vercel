@@ -82,17 +82,19 @@ interface PlatformContextType {
     id: string
   ) => boolean;
 
-  addSubmission: (submission: {
-    topicId: string;
-    resourceTitle: string;
-    link: string;
-    type: string;
-    contributorName: string;
-    contributorEmail: string;
-    suggestedTopicTitle?: string;
-    suggestedTopicDuration?: string;
-    moduleId?: number;
-  }) => Promise<void>;
+  addSubmission: (
+    submission: {
+      topicId: string;
+      resourceTitle: string;
+      link: string;
+      type: string;
+      contributorName: string;
+      contributorEmail: string;
+      suggestedTopicTitle?: string;
+      suggestedTopicDuration?: string;
+      moduleId?: number;
+    }
+  ) => Promise<void>;
 
   updateSubmissionStatus: (
     id: string,
@@ -134,13 +136,14 @@ interface PlatformContextType {
 }
 
 const PlatformContext =
-  createContext<PlatformContextType | undefined>(
-    undefined
-  );
+  createContext<
+    PlatformContextType | undefined
+  >(undefined);
 
 export const PlatformProvider: React.FC<{
   children: React.ReactNode;
 }> = ({ children }) => {
+
   const [user, setUser] =
     useState<User | null>(null);
 
@@ -148,13 +151,18 @@ export const PlatformProvider: React.FC<{
     useState<string[]>([]);
 
   const [notes, setNotes] =
-    useState<{ [topicId: string]: string }>({});
+    useState<{
+      [topicId: string]: string;
+    }>({});
 
   const [bookmarks, setBookmarks] =
     useState<
       {
         id: string;
-        type: "topic" | "project" | "case";
+        type:
+          | "topic"
+          | "project"
+          | "case";
         title: string;
       }[]
     >([]);
@@ -187,13 +195,16 @@ export const PlatformProvider: React.FC<{
     ...customTopics
   ];
 
-  // ==========================================================
-  // INITIAL LOCAL CACHE
-  // ==========================================================
+  /* ==========================================================
+     INITIAL LOCAL CACHE
+  ========================================================== */
 
   useEffect(() => {
+
     const storedUser =
-      localStorage.getItem("pm_user");
+      localStorage.getItem(
+        "pm_user"
+      );
 
     const storedCustomTopics =
       localStorage.getItem(
@@ -213,7 +224,9 @@ export const PlatformProvider: React.FC<{
     if (storedUser) {
       try {
         setUser(
-          JSON.parse(storedUser)
+          JSON.parse(
+            storedUser
+          )
         );
       } catch {}
     }
@@ -249,127 +262,118 @@ export const PlatformProvider: React.FC<{
     }
 
     setInitialized(true);
+
   }, []);
 
-  // ==========================================================
-  // LOAD CUSTOM TOPICS FROM SUPABASE
-  // ==========================================================
+
+  /* ==========================================================
+     LOAD CUSTOM TOPICS FROM SUPABASE
+  ========================================================== */
 
   useEffect(() => {
+
     if (!initialized) return;
 
-    const loadTopics = async () => {
-      try {
-        const response =
-          await fetch(
-            "/api/admin/topics"
-          );
+    const loadTopics =
+      async () => {
 
-        if (!response.ok) return;
+        try {
 
-        const data =
-          await response.json();
+          const response =
+            await fetch(
+              "/api/admin/topics"
+            );
 
-        const mapped =
-          data.map(
-            (row: any) => ({
-              id: row.id,
+          if (!response.ok) {
+            return;
+          }
 
-              moduleId:
-                Number(
-                  row.module_id
-                ),
+          const data =
+            await response.json();
 
-              title:
-                row.title,
+          const mapped =
+            data.map(
+              (row: any) => ({
+                id: row.id,
 
-              duration:
-                row.duration ||
-                "15 mins",
+                moduleId:
+                  Number(
+                    row.module_id
+                  ),
 
-              youtubeId:
-                row.youtube_id ||
-                "",
+                title:
+                  row.title,
 
-              notesTemplate:
-                row.notes_template ||
-                "",
+                duration:
+                  row.duration ||
+                  "15 mins",
 
-              exercise:
-                row.exercise ||
-                ""
-            })
-          );
+                youtubeId:
+                  row.youtube_id ||
+                  "",
 
-        setCustomTopics(
-          mapped
-        );
+                notesTemplate:
+                  row.notes_template ||
+                  "",
 
-        localStorage.setItem(
-          "pm_custom_topics",
-          JSON.stringify(
+                exercise:
+                  row.exercise ||
+                  ""
+              })
+            );
+
+          setCustomTopics(
             mapped
-          )
-        );
+          );
 
-      } catch {
-        // Local cache remains fallback.
-      }
-    };
+          localStorage.setItem(
+            "pm_custom_topics",
+            JSON.stringify(
+              mapped
+            )
+          );
+
+        } catch {
+          // Local cache remains fallback.
+        }
+      };
 
     loadTopics();
 
   }, [initialized]);
 
-  // ==========================================================
-  // LOAD TOPIC VIDEOS FROM SUPABASE
-  // ==========================================================
+
+  /* ==========================================================
+     LOAD TOPIC VIDEOS FROM SUPABASE
+  ========================================================== */
 
   useEffect(() => {
+
     if (!initialized) return;
 
-    const loadVideos = async () => {
-      try {
-        const response =
-          await fetch(
-            "/api/topic-videos"
-          );
+    const loadVideos =
+      async () => {
 
-        if (!response.ok) {
-          console.error(
-            "Could not load topic videos from Supabase."
-          );
+        try {
 
-          return;
-        }
+          const response =
+            await fetch(
+              "/api/topic-videos"
+            );
 
-        const data =
-          await response.json();
+          if (!response.ok) {
+            return;
+          }
 
-        /*
-         * API returns:
-         *
-         * [
-         *   {
-         *     topic_id: "...",
-         *     url: "..."
-         *   }
-         * ]
-         */
+          const data =
+            await response.json();
 
-        const map: {
-          [topicId: string]: string[];
-        } = {};
+          const map: {
+            [topicId: string]: string[];
+          } = {};
 
-        if (Array.isArray(data)) {
           data.forEach(
             (row: any) => {
-              if (
-                !row?.topic_id ||
-                !row?.url
-              ) {
-                return;
-              }
 
               if (
                 !map[row.topic_id]
@@ -378,92 +382,45 @@ export const PlatformProvider: React.FC<{
                   [];
               }
 
-              if (
-                !map[
-                  row.topic_id
-                ].includes(
-                  row.url
-                )
-              ) {
-                map[
-                  row.topic_id
-                ].push(
-                  row.url
-                );
-              }
+              map[
+                row.topic_id
+              ].push(
+                row.url
+              );
             }
           );
-        }
 
-        setTopicVideos(
-          map
-        );
-
-        /*
-         * Keep a local copy as a
-         * fallback/cache.
-         */
-
-        localStorage.setItem(
-          LOCAL_TOPIC_VIDEOS_KEY,
-          JSON.stringify(
+          setTopicVideos(
             map
-          )
-        );
+          );
 
-      } catch (error) {
-        console.error(
-          "Could not load topic videos:",
-          error
-        );
+          localStorage.setItem(
+            LOCAL_TOPIC_VIDEOS_KEY,
+            JSON.stringify(
+              map
+            )
+          );
 
-        // Local cache remains fallback.
-      }
-    };
+        } catch {
+          // Local cache remains fallback.
+        }
+      };
 
     loadVideos();
 
   }, [initialized]);
 
-  // ==========================================================
-  // LOAD ADMIN CONTRIBUTIONS FROM DATABASE
-  // ==========================================================
+
+  /* ==========================================================
+     LOAD USER DATA
+  ========================================================== */
 
   useEffect(() => {
-    if (
-      !initialized ||
-      user?.role !== "admin"
-    ) {
-      return;
-    }
 
-    const loadContributions =
-      async () => {
-        /*
-         * Existing demo authentication is
-         * client-side, so the API requires
-         * admin credentials when needed.
-         *
-         * If credentials are not supplied,
-         * the existing local cache remains.
-         */
-      };
-
-    loadContributions();
-
-  }, [
-    initialized,
-    user?.role
-  ]);
-
-  // ==========================================================
-  // LOAD USER DATA
-  // ==========================================================
-
-  useEffect(() => {
     if (!initialized) return;
 
     if (!user) {
+
       setProgress([]);
       setNotes({});
       setBookmarks([]);
@@ -535,7 +492,7 @@ export const PlatformProvider: React.FC<{
 
     setLastStudyDate(
       storedLastStudy ||
-        null
+      null
     );
 
   }, [
@@ -543,21 +500,26 @@ export const PlatformProvider: React.FC<{
     initialized
   ]);
 
-  // ==========================================================
-  // USER SESSION
-  // ==========================================================
+
+  /* ==========================================================
+     USER SESSION
+  ========================================================== */
 
   useEffect(() => {
+
     if (!initialized) return;
 
     if (user) {
+
       localStorage.setItem(
         "pm_user",
         JSON.stringify(
           user
         )
       );
+
     } else {
+
       localStorage.removeItem(
         "pm_user"
       );
@@ -568,11 +530,13 @@ export const PlatformProvider: React.FC<{
     initialized
   ]);
 
-  // ==========================================================
-  // LEARNER CACHE
-  // ==========================================================
+
+  /* ==========================================================
+     LEARNER CACHE
+  ========================================================== */
 
   useEffect(() => {
+
     if (
       !initialized ||
       !user
@@ -593,7 +557,9 @@ export const PlatformProvider: React.FC<{
     initialized
   ]);
 
+
   useEffect(() => {
+
     if (
       !initialized ||
       !user
@@ -614,7 +580,9 @@ export const PlatformProvider: React.FC<{
     initialized
   ]);
 
+
   useEffect(() => {
+
     if (
       !initialized ||
       !user
@@ -635,7 +603,9 @@ export const PlatformProvider: React.FC<{
     initialized
   ]);
 
+
   useEffect(() => {
+
     if (
       !initialized ||
       !user
@@ -656,7 +626,9 @@ export const PlatformProvider: React.FC<{
     initialized
   ]);
 
+
   useEffect(() => {
+
     if (
       !initialized ||
       !user
@@ -666,8 +638,7 @@ export const PlatformProvider: React.FC<{
 
     localStorage.setItem(
       `pm_${user.email}_last_study_date`,
-      lastStudyDate ||
-        ""
+      lastStudyDate || ""
     );
 
   }, [
@@ -676,14 +647,13 @@ export const PlatformProvider: React.FC<{
     initialized
   ]);
 
-  // ==========================================================
-  // CACHE ADMIN DATA
-  //
-  // These are ONLY caches.
-  // Supabase is the source of truth.
-  // ==========================================================
+
+  /* ==========================================================
+     ADMIN CACHE
+  ========================================================== */
 
   useEffect(() => {
+
     if (!initialized) return;
 
     localStorage.setItem(
@@ -698,7 +668,9 @@ export const PlatformProvider: React.FC<{
     initialized
   ]);
 
+
   useEffect(() => {
+
     if (!initialized) return;
 
     localStorage.setItem(
@@ -713,7 +685,9 @@ export const PlatformProvider: React.FC<{
     initialized
   ]);
 
+
   useEffect(() => {
+
     if (!initialized) return;
 
     localStorage.setItem(
@@ -728,9 +702,10 @@ export const PlatformProvider: React.FC<{
     initialized
   ]);
 
-  // ==========================================================
-  // LOGIN / LOGOUT
-  // ==========================================================
+
+  /* ==========================================================
+     LOGIN
+  ========================================================== */
 
   const login = (
     name: string,
@@ -739,6 +714,7 @@ export const PlatformProvider: React.FC<{
       | "learner"
       | "admin"
   ) => {
+
     setUser({
       name,
       email,
@@ -746,28 +722,35 @@ export const PlatformProvider: React.FC<{
     });
   };
 
+
+  /* ==========================================================
+     LOGOUT
+  ========================================================== */
+
   const logout = () => {
     setUser(null);
   };
 
-  // ==========================================================
-  // PROGRESS
-  // ==========================================================
+
+  /* ==========================================================
+     PROGRESS
+  ========================================================== */
 
   const updateStreak = () => {
+
     const today =
       new Date()
         .toISOString()
         .split("T")[0];
 
     if (
-      lastStudyDate ===
-      today
+      lastStudyDate === today
     ) {
       return;
     }
 
     if (!lastStudyDate) {
+
       setStreak(1);
 
     } else {
@@ -788,12 +771,12 @@ export const PlatformProvider: React.FC<{
             current.getTime() -
             previous.getTime()
           ) /
-            (
-              1000 *
-              60 *
-              60 *
-              24
-            )
+          (
+            1000 *
+            60 *
+            60 *
+            24
+          )
         );
 
       if (
@@ -801,14 +784,13 @@ export const PlatformProvider: React.FC<{
       ) {
 
         setStreak(
-          (value) =>
+          value =>
             value + 1
         );
 
       } else {
 
         setStreak(1);
-
       }
     }
 
@@ -817,12 +799,13 @@ export const PlatformProvider: React.FC<{
     );
   };
 
+
   const toggleTopicCompletion = (
     topicId: string
   ) => {
 
     setProgress(
-      (previous) => {
+      previous => {
 
         if (
           previous.includes(
@@ -831,10 +814,9 @@ export const PlatformProvider: React.FC<{
         ) {
 
           return previous.filter(
-            (id) =>
+            id =>
               id !== topicId
           );
-
         }
 
         updateStreak();
@@ -847,9 +829,10 @@ export const PlatformProvider: React.FC<{
     );
   };
 
-  // ==========================================================
-  // NOTES
-  // ==========================================================
+
+  /* ==========================================================
+     NOTES
+  ========================================================== */
 
   const saveNote = (
     topicId: string,
@@ -857,17 +840,19 @@ export const PlatformProvider: React.FC<{
   ) => {
 
     setNotes(
-      (previous) => ({
+      previous => ({
         ...previous,
+
         [topicId]:
           text
       })
     );
   };
 
-  // ==========================================================
-  // BOOKMARKS
-  // ==========================================================
+
+  /* ==========================================================
+     BOOKMARKS
+  ========================================================== */
 
   const toggleBookmark = (
     id: string,
@@ -879,11 +864,11 @@ export const PlatformProvider: React.FC<{
   ) => {
 
     setBookmarks(
-      (previous) => {
+      previous => {
 
         const exists =
           previous.some(
-            (bookmark) =>
+            bookmark =>
               bookmark.id ===
               id
           );
@@ -891,15 +876,15 @@ export const PlatformProvider: React.FC<{
         if (exists) {
 
           return previous.filter(
-            (bookmark) =>
+            bookmark =>
               bookmark.id !==
               id
           );
-
         }
 
         return [
           ...previous,
+
           {
             id,
             type,
@@ -910,19 +895,21 @@ export const PlatformProvider: React.FC<{
     );
   };
 
+
   const isBookmarked = (
     id: string
   ) => {
 
     return bookmarks.some(
-      (bookmark) =>
+      bookmark =>
         bookmark.id === id
     );
   };
 
-  // ==========================================================
-  // USER CONTRIBUTION
-  // ==========================================================
+
+  /* ==========================================================
+     USER CONTRIBUTION
+  ========================================================== */
 
   const addSubmission =
     async (
@@ -941,6 +928,7 @@ export const PlatformProvider: React.FC<{
 
       const newSubmission:
         Submission = {
+
         ...sub,
 
         id:
@@ -950,19 +938,16 @@ export const PlatformProvider: React.FC<{
           "Pending",
 
         submittedAt:
-          new Date().toISOString()
+          new Date()
+            .toISOString()
       };
 
-      /*
-       * DATABASE FIRST
-       */
 
       const response =
         await fetch(
           "/api/contributions",
           {
-            method:
-              "POST",
+            method: "POST",
 
             headers: {
               "Content-Type":
@@ -976,32 +961,33 @@ export const PlatformProvider: React.FC<{
           }
         );
 
-      if (!response.ok) {
+
+      if (
+        !response.ok
+      ) {
 
         throw new Error(
           "Could not save contribution to database."
         );
-
       }
+
 
       const saved =
         await response.json();
 
-      /*
-       * Update browser cache
-       */
 
       setSubmissions(
-        (previous) => [
+        previous => [
           saved,
           ...previous
         ]
       );
     };
 
-  // ==========================================================
-  // ADMIN APPROVE / REJECT
-  // ==========================================================
+
+  /* ==========================================================
+     ADMIN APPROVE / REJECT
+  ========================================================== */
 
   const updateSubmissionStatus =
     async (
@@ -1013,18 +999,23 @@ export const PlatformProvider: React.FC<{
 
       const submission =
         submissions.find(
-          (item) =>
+          item =>
             item.id === id
         );
 
-      if (!submission)
+      if (!submission) {
         return;
+      }
+
 
       /*
-       * IMPORTANT:
+       * NOTE:
        *
-       * Current application has
-       * client-side admin authentication.
+       * This existing contribution
+       * approval flow still uses Basic Auth.
+       *
+       * Topic creation does NOT use
+       * this prompt anymore.
        */
 
       const username =
@@ -1044,18 +1035,19 @@ export const PlatformProvider: React.FC<{
         return;
       }
 
+
       const auth =
         "Basic " +
         btoa(
           `${username}:${password}`
         );
 
+
       const response =
         await fetch(
           "/api/contributions",
           {
-            method:
-              "PATCH",
+            method: "PATCH",
 
             headers: {
               "Content-Type":
@@ -1069,6 +1061,7 @@ export const PlatformProvider: React.FC<{
               JSON.stringify({
                 id,
                 status,
+
                 reviewedBy:
                   user?.email ||
                   username
@@ -1076,39 +1069,23 @@ export const PlatformProvider: React.FC<{
           }
         );
 
-      if (!response.ok) {
 
-        let errorMessage =
-          "Could not update contribution in Supabase.";
-
-        try {
-          const errorData =
-            await response.json();
-
-          if (
-            errorData?.error
-          ) {
-            errorMessage =
-              errorData.error;
-          }
-
-        } catch {}
+      if (
+        !response.ok
+      ) {
 
         alert(
-          errorMessage
+          "Could not update contribution in Supabase."
         );
 
         return;
       }
 
-      /*
-       * Update local cache
-       */
 
       setSubmissions(
-        (previous) =>
+        previous =>
           previous.map(
-            (item) =>
+            item =>
               item.id === id
                 ? {
                     ...item,
@@ -1118,10 +1095,10 @@ export const PlatformProvider: React.FC<{
           )
       );
 
-      /*
-       * If approved video,
-       * save permanently.
-       */
+
+      /* ======================================================
+         APPROVED VIDEO
+      ====================================================== */
 
       if (
         status === "Approved" &&
@@ -1133,8 +1110,7 @@ export const PlatformProvider: React.FC<{
           await fetch(
             "/api/topic-videos",
             {
-              method:
-                "POST",
+              method: "POST",
 
               headers: {
                 "Content-Type":
@@ -1161,36 +1137,21 @@ export const PlatformProvider: React.FC<{
             }
           );
 
+
         if (
           !videoResponse.ok
         ) {
 
-          let errorMessage =
-            "Could not save approved video to Supabase.";
-
-          try {
-
-            const errorData =
-              await videoResponse.json();
-
-            if (
-              errorData?.error
-            ) {
-              errorMessage =
-                errorData.error;
-            }
-
-          } catch {}
-
           alert(
-            errorMessage
+            "Contribution approved, but video could not be saved."
           );
 
           return;
         }
 
+
         setTopicVideos(
-          (previous) => {
+          previous => {
 
             const existing =
               previous[
@@ -1206,6 +1167,7 @@ export const PlatformProvider: React.FC<{
             }
 
             return {
+
               ...previous,
 
               [submission.topicId]:
@@ -1218,10 +1180,10 @@ export const PlatformProvider: React.FC<{
         );
       }
 
-      /*
-       * If contributor suggested
-       * a new topic, create it.
-       */
+
+      /* ======================================================
+         APPROVED NEW TOPIC
+      ====================================================== */
 
       if (
         status === "Approved" &&
@@ -1242,9 +1204,18 @@ export const PlatformProvider: React.FC<{
       }
     };
 
-  // ==========================================================
-  // ADMIN CREATE TOPIC
-  // ==========================================================
+
+  /* ==========================================================
+     ADMIN CREATE TOPIC
+
+     IMPORTANT:
+
+     NO USERNAME/PASSWORD PROMPT.
+
+     The admin login already exists in the
+     application.
+
+  ========================================================== */
 
   const addTopic =
     async (
@@ -1257,7 +1228,9 @@ export const PlatformProvider: React.FC<{
       const newTopicId =
         `t-custom-${Date.now()}`;
 
+
       const newTopic = {
+
         id:
           newTopicId,
 
@@ -1270,55 +1243,35 @@ export const PlatformProvider: React.FC<{
           "15 mins",
 
         youtubeId:
-          videoUrl || "",
+          videoUrl ||
+          "",
 
         notesTemplate:
-          `## Lecture Notes: ${title}\n\n- Key Concept 1:\n- Key Concept 2:\n- Strategic Takeaway:\n`,
+          `## Lecture Notes: ${title}
+
+- Key Concept 1:
+- Key Concept 2:
+- Strategic Takeaway:
+`,
 
         exercise:
           "Reflect on how this concept impacts product management and list three useful execution metrics."
       };
 
-      /*
-       * Ask admin for credentials.
-       */
 
-      const username =
-        window.prompt(
-          "Admin username"
-        );
-
-      const password =
-        window.prompt(
-          "Admin password"
-        );
-
-      if (
-        !username ||
-        !password
-      ) {
-        return;
-      }
-
-      const auth =
-        "Basic " +
-        btoa(
-          `${username}:${password}`
-        );
+      /* ======================================================
+         SAVE TOPIC TO SUPABASE
+      ====================================================== */
 
       const response =
         await fetch(
           "/api/admin/topics",
           {
-            method:
-              "POST",
+            method: "POST",
 
             headers: {
               "Content-Type":
-                "application/json",
-
-              Authorization:
-                auth
+                "application/json"
             },
 
             body:
@@ -1328,46 +1281,53 @@ export const PlatformProvider: React.FC<{
                 adminUser: {
                   email:
                     user?.email ||
-                    username
+                    ""
                 }
               })
           }
         );
 
-      if (!response.ok) {
 
-        let errorMessage =
-          "Could not save topic to Supabase.";
+      if (
+        !response.ok
+      ) {
 
-        try {
+        const errorText =
+          await response.text();
 
-          const errorData =
-            await response.json();
-
-          if (
-            errorData?.error
-          ) {
-            errorMessage =
-              errorData.error;
-          }
-
-        } catch {}
+        console.error(
+          "ADD TOPIC ERROR:",
+          errorText
+        );
 
         alert(
-          errorMessage
+          "Could not save topic to Supabase."
         );
 
         return;
       }
 
+
+      /* ======================================================
+         UPDATE LOCAL CACHE
+      ====================================================== */
+
       setCustomTopics(
-        (previous) => [
+        previous => [
           ...previous,
+
           newTopic as any
         ]
       );
 
-      if (videoUrl) {
+
+      /* ======================================================
+         SAVE VIDEO
+      ====================================================== */
+
+      if (
+        videoUrl
+      ) {
 
         await addTopicVideo(
           newTopicId,
@@ -1376,9 +1336,15 @@ export const PlatformProvider: React.FC<{
       }
     };
 
-  // ==========================================================
-  // ADD VIDEO
-  // ==========================================================
+
+  /* ==========================================================
+     ADD TOPIC VIDEO
+
+     IMPORTANT:
+
+     NO USERNAME/PASSWORD PROMPT.
+
+  ========================================================== */
 
   const addTopicVideo =
     async (
@@ -1386,56 +1352,23 @@ export const PlatformProvider: React.FC<{
       url: string
     ) => {
 
-      /*
-       * Ask for admin credentials.
-       *
-       * The browser does NOT directly
-       * write to Supabase.
-       *
-       * It calls:
-       *
-       * /api/topic-videos
-       *
-       * The server API uses the
-       * Supabase service-role key.
-       */
-
-      const username =
-        window.prompt(
-          "Admin username"
-        );
-
-      const password =
-        window.prompt(
-          "Admin password"
-        );
-
       if (
-        !username ||
-        !password
+        !topicId ||
+        !url
       ) {
         return;
       }
 
-      const auth =
-        "Basic " +
-        btoa(
-          `${username}:${password}`
-        );
 
       const response =
         await fetch(
           "/api/topic-videos",
           {
-            method:
-              "POST",
+            method: "POST",
 
             headers: {
               "Content-Type":
-                "application/json",
-
-              Authorization:
-                auth
+                "application/json"
             },
 
             body:
@@ -1447,82 +1380,54 @@ export const PlatformProvider: React.FC<{
                 adminUser: {
                   email:
                     user?.email ||
-                    username
+                    ""
                 }
               })
           }
         );
 
-      /* ======================================================
-         IMPORTANT ERROR HANDLING
-      ====================================================== */
 
-      if (!response.ok) {
+      if (
+        !response.ok
+      ) {
 
-        let errorMessage =
-          "Could not save video to Supabase.";
-
-        try {
-
-          const errorData =
-            await response.json();
-
-          if (
-            errorData?.error
-          ) {
-            errorMessage =
-              errorData.error;
-          }
-
-        } catch {
-          // Ignore JSON parsing failure.
-        }
+        const errorText =
+          await response.text();
 
         console.error(
-          "ADD TOPIC VIDEO ERROR:",
-          errorMessage
+          "ADD VIDEO ERROR:",
+          errorText
         );
 
         alert(
-          `Could not save video to Supabase.\n\n${errorMessage}`
+          "Could not save video to Supabase."
         );
 
         return;
       }
 
-      /* ======================================================
-         SUCCESS
-      ====================================================== */
-
-      const result =
-        await response.json();
-
-      console.log(
-        "VIDEO SAVED TO SUPABASE:",
-        result
-      );
-
-      /*
-       * Update local UI immediately.
-       */
 
       setTopicVideos(
-        (previous) => {
+        previous => {
 
           const existing =
             previous[
               topicId
             ] || [];
 
+
           if (
             existing.includes(
               url
             )
           ) {
+
             return previous;
           }
 
+
           return {
+
             ...previous,
 
             [topicId]: [
@@ -1532,139 +1437,152 @@ export const PlatformProvider: React.FC<{
           };
         }
       );
-
-      /*
-       * Show success confirmation.
-       */
-
-      alert(
-        "Video saved successfully to Supabase."
-      );
     };
 
-  // ==========================================================
-  // REMOVE VIDEO
-  // ==========================================================
 
-  const removeTopicVideo =
-    (
-      topicId: string,
-      index: number
-    ) => {
+  /* ==========================================================
+     REMOVE TOPIC VIDEO
+  ========================================================== */
 
-      setTopicVideos(
-        (previous) => {
+  const removeTopicVideo = (
+    topicId: string,
+    index: number
+  ) => {
 
-          const videos =
-            previous[
-              topicId
-            ] || [];
+    setTopicVideos(
+      previous => {
 
-          return {
-            ...previous,
+        const videos =
+          previous[
+            topicId
+          ] || [];
 
-            [topicId]:
-              videos.filter(
-                (_, i) =>
-                  i !== index
-              )
-          };
+
+        return {
+
+          ...previous,
+
+          [topicId]:
+            videos.filter(
+              (_, i) =>
+                i !== index
+            )
+        };
+      }
+    );
+  };
+
+
+  /* ==========================================================
+     MODULE PROGRESS
+  ========================================================== */
+
+  const getModuleProgress = (
+    moduleId: number
+  ) => {
+
+    const module =
+      MODULES.find(
+        item =>
+          item.id ===
+          moduleId
+      );
+
+
+    if (!module) {
+      return 0;
+    }
+
+
+    const moduleTopics =
+      allTopics.filter(
+        topic =>
+          topic.moduleId ===
+          moduleId
+      );
+
+
+    if (
+      !moduleTopics.length
+    ) {
+      return 0;
+    }
+
+
+    const completed =
+      moduleTopics.filter(
+        topic =>
+          progress.includes(
+            topic.id
+          )
+      ).length;
+
+
+    return Math.round(
+      (
+        completed /
+        moduleTopics.length
+      ) * 100
+    );
+  };
+
+
+  /* ==========================================================
+     PHASE PROGRESS
+  ========================================================== */
+
+  const getPhaseProgress = (
+    phaseId: number
+  ) => {
+
+    const phaseTopics =
+      allTopics.filter(
+        topic => {
+
+          const module =
+            MODULES.find(
+              item =>
+                item.id ===
+                topic.moduleId
+            );
+
+
+          return (
+            module?.phaseId ===
+            phaseId
+          );
         }
       );
-    };
 
-  // ==========================================================
-  // PROGRESS CALCULATIONS
-  // ==========================================================
 
-  const getModuleProgress =
-    (
-      moduleId: number
-    ) => {
+    if (
+      !phaseTopics.length
+    ) {
+      return 0;
+    }
 
-      const module =
-        MODULES.find(
-          (item) =>
-            item.id ===
-            moduleId
-        );
 
-      if (!module)
-        return 0;
+    const completed =
+      phaseTopics.filter(
+        topic =>
+          progress.includes(
+            topic.id
+          )
+      ).length;
 
-      const moduleTopics =
-        allTopics.filter(
-          (topic) =>
-            topic.moduleId ===
-            moduleId
-        );
 
-      if (
-        !moduleTopics.length
-      ) {
-        return 0;
-      }
+    return Math.round(
+      (
+        completed /
+        phaseTopics.length
+      ) * 100
+    );
+  };
 
-      const completed =
-        moduleTopics.filter(
-          (topic) =>
-            progress.includes(
-              topic.id
-            )
-        ).length;
 
-      return Math.round(
-        (
-          completed /
-          moduleTopics.length
-        ) * 100
-      );
-    };
-
-  const getPhaseProgress =
-    (
-      phaseId: number
-    ) => {
-
-      const phaseTopics =
-        allTopics.filter(
-          (topic) => {
-
-            const module =
-              MODULES.find(
-                (item) =>
-                  item.id ===
-                  topic.moduleId
-              );
-
-            return (
-              module?.phaseId ===
-              phaseId
-            );
-          }
-        );
-
-      if (
-        !phaseTopics.length
-      ) {
-        return 0;
-      }
-
-      const completed =
-        phaseTopics.filter(
-          (topic) =>
-            progress.includes(
-              topic.id
-            )
-        ).length;
-
-      return Math.round(
-        (
-          completed /
-          phaseTopics.length
-        ) * 100
-      );
-    };
+  /* ==========================================================
+     OVERALL PROGRESS
+  ========================================================== */
 
   const getOverallProgress =
     () => {
@@ -1675,13 +1593,15 @@ export const PlatformProvider: React.FC<{
         return 0;
       }
 
+
       const completed =
         allTopics.filter(
-          (topic) =>
+          topic =>
             progress.includes(
               topic.id
             )
         ).length;
+
 
       return Math.round(
         (
@@ -1691,13 +1611,16 @@ export const PlatformProvider: React.FC<{
       );
     };
 
-  // ==========================================================
-  // PROVIDER
-  // ==========================================================
+
+  /* ==========================================================
+     PROVIDER
+  ========================================================== */
 
   return (
+
     <PlatformContext.Provider
       value={{
+
         user,
 
         progress,
@@ -1743,12 +1666,20 @@ export const PlatformProvider: React.FC<{
         getPhaseProgress,
 
         getOverallProgress
+
       }}
     >
+
       {children}
+
     </PlatformContext.Provider>
   );
 };
+
+
+/* ============================================================
+   HOOK
+============================================================ */
 
 export const usePlatform =
   () => {
@@ -1758,13 +1689,14 @@ export const usePlatform =
         PlatformContext
       );
 
+
     if (!context) {
 
       throw new Error(
         "usePlatform must be used within PlatformProvider"
       );
-
     }
+
 
     return context;
   };
