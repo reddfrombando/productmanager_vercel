@@ -1,127 +1,372 @@
-import type { NextApiRequest, NextApiResponse } from "next";
-import { checkBasicAuth } from "@/lib/basicAuth";
+import type {
+  NextApiRequest,
+  NextApiResponse,
+} from "next";
 
-const SUPABASE_URL = process.env.SUPABASE_URL;
-const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const SUPABASE_URL =
+  process.env.SUPABASE_URL;
+
+const SUPABASE_SERVICE_ROLE_KEY =
+  process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+
+function supabaseHeaders() {
+  return {
+    apikey:
+      SUPABASE_SERVICE_ROLE_KEY as string,
+
+    Authorization:
+      `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+
+    "Content-Type":
+      "application/json",
+  };
+}
+
 
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse
 ) {
-  if (!SUPABASE_URL || !SERVICE_KEY) {
-    return res.status(500).json({
-      error: "Supabase is not configured."
+
+  /* ==========================================================
+     ONLY POST IS ALLOWED
+  ========================================================== */
+
+  if (req.method !== "POST") {
+
+    res.setHeader(
+      "Allow",
+      "POST"
+    );
+
+    return res.status(405).json({
+      success: false,
+      error:
+        "Method not allowed.",
     });
+
   }
 
-  const headers = {
-    apikey: SERVICE_KEY,
-    Authorization: `Bearer ${SERVICE_KEY}`,
-    "Content-Type": "application/json"
-  };
 
-  // ----------------------------------------------------------
-  // GET CUSTOM TOPICS
-  // ----------------------------------------------------------
+  /* ==========================================================
+     SUPABASE CONFIGURATION
+  ========================================================== */
 
-  if (req.method === "GET") {
-    try {
-      const response = await fetch(
-        `${SUPABASE_URL}/rest/v1/topic_content?select=*&order=created_at.asc`,
+  if (
+    !SUPABASE_URL ||
+    !SUPABASE_SERVICE_ROLE_KEY
+  ) {
+
+    console.error(
+      "Supabase environment variables are missing."
+    );
+
+    return res.status(500).json({
+      success: false,
+      error:
+        "Supabase server configuration is missing.",
+    });
+
+  }
+
+
+  try {
+
+    const body =
+      req.body || {};
+
+
+    /* ========================================================
+       READ REQUEST
+    ======================================================== */
+
+    const topicId =
+      body.topicId ??
+      body.topic_id;
+
+    const url =
+      body.url;
+
+    const addedBy =
+      body.addedBy ??
+      body.added_by ??
+      "admin";
+
+
+    /* ========================================================
+       VALIDATION
+    ======================================================== */
+
+    if (
+      topicId === undefined ||
+      topicId === null ||
+      String(topicId).trim() === ""
+    ) {
+
+      return res.status(400).json({
+        success: false,
+        error:
+          "topicId is required.",
+      });
+
+    }
+
+
+    if (
+      !url ||
+      typeof url !== "string" ||
+      !url.trim()
+    ) {
+
+      return res.status(400).json({
+        success: false,
+        error:
+          "Video URL is required.",
+      });
+
+    }
+
+
+    /* ========================================================
+       NORMALIZE
+    ======================================================== */
+
+    const topicIdValue =
+      String(topicId).trim();
+
+    const videoUrl =
+      url.trim();
+
+
+    /* ========================================================
+       CHECK WHETHER VIDEO ALREADY EXISTS
+    ======================================================== */
+
+    const existingResponse =
+      await fetch(
+        `${SUPABASE_URL}/rest/v1/topic_videos?topic_id=eq.${encodeURIComponent(
+          topicIdValue
+        )}&url=eq.${encodeURIComponent(
+          videoUrl
+        )}&select=id`,
         {
-          headers
+          method: "GET",
+          headers:
+            supabaseHeaders(),
         }
       );
 
-      if (!response.ok) {
-        return res.status(response.status).json({
-          error: await response.text()
-        });
-      }
 
-      return res.status(200).json(await response.json());
-    } catch {
+    if (
+      !existingResponse.ok
+    ) {
+
+      const errorText =
+        await existingResponse.text();
+
+      console.error(
+        "Existing video check failed:",
+        errorText
+      );
+
       return res.status(500).json({
-        error: "Failed to load topics."
+        success: false,
+        error:
+          `Could not check existing video: ${errorText}`,
       });
-    }
-  }
 
-  // ----------------------------------------------------------
-  // CREATE / UPDATE TOPIC
-  // ----------------------------------------------------------
-
-  if (req.method === "POST") {
-    if (!checkBasicAuth(req)) {
-      return res.status(401).json({
-        error: "Admin authentication required."
-      });
     }
 
-    const {
-      id,
-      moduleId,
-      title,
-      duration,
-      youtubeId,
-      notesTemplate,
-      exercise,
-      adminUser
-    } = req.body || {};
 
-    if (!id || !moduleId || !title) {
-      return res.status(400).json({
-        error: "id, moduleId and title are required."
+    const existing =
+      await existingResponse.json();
+
+
+    /* ========================================================
+       ALREADY EXISTS
+    ======================================================== */
+
+    if (
+      Array.isArray(existing) &&
+      existing.length > 0
+    ) {
+
+      return res.status(200).json({
+        success: true,
+        alreadyExists: true,
+        message:
+          "Video already exists in Supabase.",
+        data:
+          existing[0],
       });
+
     }
 
-    const topic = {
-      id: String(id),
-      module_id: Number(moduleId),
-      title: String(title),
-      duration: duration || "15 mins",
-      youtube_id: youtubeId || null,
-      notes_template:
-        notesTemplate ||
-        `## Lecture Notes: ${title}\n\n- Key Concept 1:\n- Key Concept 2:\n- Strategic Takeaway:\n`,
-      exercise:
-        exercise ||
-        "Reflect on how this concept impacts product management.",
-      created_by: adminUser?.email || null,
-      updated_by: adminUser?.email || null
-    };
 
-    try {
-      const response = await fetch(
-        `${SUPABASE_URL}/rest/v1/topic_content`,
+    /* ========================================================
+       INSERT VIDEO
+    ======================================================== */
+
+    const insertResponse =
+      await fetch(
+        `${SUPABASE_URL}/rest/v1/topic_videos`,
         {
           method: "POST",
+
           headers: {
-            ...headers,
-            Prefer: "resolution=merge-duplicates,return=representation"
+            ...supabaseHeaders(),
+
+            Prefer:
+              "return=representation",
           },
-          body: JSON.stringify(topic)
+
+          body:
+            JSON.stringify({
+              topic_id:
+                topicIdValue,
+
+              url:
+                videoUrl,
+
+              added_by:
+                String(
+                  addedBy
+                ),
+            }),
         }
       );
 
-      if (!response.ok) {
-        return res.status(response.status).json({
-          error: await response.text()
-        });
-      }
 
-      const data = await response.json();
+    /* ========================================================
+       HANDLE INSERT ERROR
+    ======================================================== */
 
-      return res.status(201).json(data?.[0] || data);
-    } catch {
-      return res.status(500).json({
-        error: "Failed to save topic."
+    if (
+      !insertResponse.ok
+    ) {
+
+      const errorText =
+        await insertResponse.text();
+
+      console.error(
+        "Supabase topic_videos insert failed:",
+        errorText
+      );
+
+      return res.status(
+        insertResponse.status >= 400 &&
+        insertResponse.status < 600
+          ? insertResponse.status
+          : 500
+      ).json({
+        success: false,
+        error:
+          `Supabase rejected the video: ${errorText}`,
       });
+
     }
+
+
+    /* ========================================================
+       READ INSERTED DATA
+    ======================================================== */
+
+    const inserted =
+      await insertResponse.json();
+
+
+    /* ========================================================
+       VERIFY
+    ======================================================== */
+
+    const verifyResponse =
+      await fetch(
+        `${SUPABASE_URL}/rest/v1/topic_videos?topic_id=eq.${encodeURIComponent(
+          topicIdValue
+        )}&url=eq.${encodeURIComponent(
+          videoUrl
+        )}&select=id,topic_id,url,added_by`,
+        {
+          method: "GET",
+          headers:
+            supabaseHeaders(),
+        }
+      );
+
+
+    if (
+      !verifyResponse.ok
+    ) {
+
+      const errorText =
+        await verifyResponse.text();
+
+      console.error(
+        "Video verification failed:",
+        errorText
+      );
+
+      return res.status(500).json({
+        success: false,
+        error:
+          `Video was inserted but verification failed: ${errorText}`,
+      });
+
+    }
+
+
+    const verified =
+      await verifyResponse.json();
+
+
+    if (
+      !Array.isArray(verified) ||
+      verified.length === 0
+    ) {
+
+      return res.status(500).json({
+        success: false,
+        error:
+          "Video insert returned successfully, but the record could not be verified in Supabase.",
+      });
+
+    }
+
+
+    /* ========================================================
+       SUCCESS
+    ======================================================== */
+
+    return res.status(200).json({
+      success: true,
+
+      message:
+        "Video successfully saved and verified in Supabase.",
+
+      data:
+        verified[0],
+
+      inserted,
+    });
+
+
+  } catch (
+    error: any
+  ) {
+
+    console.error(
+      "TOPIC VIDEO API ERROR:",
+      error
+    );
+
+    return res.status(500).json({
+      success: false,
+      error:
+        error?.message ||
+        "Could not save video to Supabase.",
+    });
+
   }
 
-  res.setHeader("Allow", "GET, POST");
-  return res.status(405).json({
-    error: "Method not allowed."
-  });
 }
