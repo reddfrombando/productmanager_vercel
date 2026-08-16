@@ -1034,9 +1034,8 @@ export const PlatformProvider: React.FC<{
                 id,
                 status,
 
-                reviewedBy:
-                  user?.email ||
-                  username
+               reviewedBy:
+  user?.email || ""
               })
           }
         );
