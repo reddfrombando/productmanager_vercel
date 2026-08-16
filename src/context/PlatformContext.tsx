@@ -1,7 +1,17 @@
 "use client";
 
-import React, { createContext, useContext, useState, useEffect } from "react";
-import { TOPICS, MODULES, PHASES, PORTFOLIO_PROJECTS, CASE_STUDIES, ResourceItem } from "@/data/curriculum";
+import React, {
+  createContext,
+  useContext,
+  useEffect,
+  useState
+} from "react";
+
+import {
+  TOPICS,
+  MODULES,
+  PHASES
+} from "@/data/curriculum";
 
 export interface User {
   name: string;
@@ -9,33 +19,69 @@ export interface User {
   role: "learner" | "admin";
 }
 
+type Submission = {
+  id: string;
+  topicId: string;
+  resourceTitle: string;
+  link: string;
+  type: string;
+  contributorName: string;
+  contributorEmail: string;
+  status: "Pending" | "Approved" | "Rejected";
+  submittedAt: string;
+  suggestedTopicTitle?: string;
+  suggestedTopicDuration?: string;
+  moduleId?: number;
+};
+
 interface PlatformContextType {
   user: User | null;
-  progress: string[]; // List of completed topic IDs
-  notes: { [topicId: string]: string };
-  bookmarks: { id: string; type: "topic" | "project" | "case"; title: string }[];
-  submissions: {
+
+  progress: string[];
+
+  notes: {
+    [topicId: string]: string;
+  };
+
+  bookmarks: {
     id: string;
-    topicId: string;
-    resourceTitle: string;
-    link: string;
-    type: string;
-    contributorName: string;
-    contributorEmail: string;
-    status: "Pending" | "Approved" | "Rejected";
-    submittedAt: string;
-    suggestedTopicTitle?: string;
-    suggestedTopicDuration?: string;
-    moduleId?: number;
+    type: "topic" | "project" | "case";
+    title: string;
   }[];
+
+  submissions: Submission[];
+
   streak: number;
+
   lastStudyDate: string | null;
-  login: (name: string, email: string, role: "learner" | "admin") => void;
+
+  login: (
+    name: string,
+    email: string,
+    role: "learner" | "admin"
+  ) => void;
+
   logout: () => void;
-  toggleTopicCompletion: (topicId: string) => void;
-  saveNote: (topicId: string, text: string) => void;
-  toggleBookmark: (id: string, type: "topic" | "project" | "case", title: string) => void;
-  isBookmarked: (id: string) => boolean;
+
+  toggleTopicCompletion: (
+    topicId: string
+  ) => void;
+
+  saveNote: (
+    topicId: string,
+    text: string
+  ) => void;
+
+  toggleBookmark: (
+    id: string,
+    type: "topic" | "project" | "case",
+    title: string
+  ) => void;
+
+  isBookmarked: (
+    id: string
+  ) => boolean;
+
   addSubmission: (submission: {
     topicId: string;
     resourceTitle: string;
@@ -46,466 +92,1156 @@ interface PlatformContextType {
     suggestedTopicTitle?: string;
     suggestedTopicDuration?: string;
     moduleId?: number;
-  }) => void;
-  updateSubmissionStatus: (id: string, status: "Approved" | "Rejected") => void;
+  }) => Promise<void>;
+
+  updateSubmissionStatus: (
+    id: string,
+    status: "Approved" | "Rejected"
+  ) => Promise<void>;
+
   allTopics: typeof TOPICS;
-  topicVideos: { [topicId: string]: string[] };
-  addTopic: (moduleId: number, title: string, duration: string, videoUrl: string) => void;
-  addTopicVideo: (topicId: string, url: string) => void;
-  removeTopicVideo: (topicId: string, index: number) => void;
-  getModuleProgress: (moduleId: number) => number; // percentage (0-100)
-  getPhaseProgress: (phaseId: number) => number; // percentage (0-100)
-  getOverallProgress: () => number; // percentage (0-100)
+
+  topicVideos: {
+    [topicId: string]: string[];
+  };
+
+  addTopic: (
+    moduleId: number,
+    title: string,
+    duration: string,
+    videoUrl: string
+  ) => Promise<void>;
+
+  addTopicVideo: (
+    topicId: string,
+    url: string
+  ) => Promise<void>;
+
+  removeTopicVideo: (
+    topicId: string,
+    index: number
+  ) => void;
+
+  getModuleProgress: (
+    moduleId: number
+  ) => number;
+
+  getPhaseProgress: (
+    phaseId: number
+  ) => number;
+
+  getOverallProgress: () => number;
 }
 
-const PlatformContext = createContext<PlatformContextType | undefined>(undefined);
+const PlatformContext =
+  createContext<PlatformContextType | undefined>(
+    undefined
+  );
 
-export const PlatformProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [user, setUser] = useState<User | null>(null);
-  const [progress, setProgress] = useState<string[]>([]);
-  const [notes, setNotes] = useState<{ [topicId: string]: string }>({});
-  const [bookmarks, setBookmarks] = useState<{ id: string; type: "topic" | "project" | "case"; title: string }[]>([]);
-  const [submissions, setSubmissions] = useState<PlatformContextType["submissions"]>([]);
-  const [streak, setStreak] = useState<number>(0);
-  const [lastStudyDate, setLastStudyDate] = useState<string | null>(null);
-  const [customTopics, setCustomTopics] = useState<typeof TOPICS>([]);
-  const [topicVideos, setTopicVideos] = useState<{ [topicId: string]: string[] }>({});
-  const [initialized, setInitialized] = useState(false);
+export const PlatformProvider: React.FC<{
+  children: React.ReactNode;
+}> = ({ children }) => {
+  const [user, setUser] =
+    useState<User | null>(null);
 
-  const allTopics = [...TOPICS, ...customTopics];
+  const [progress, setProgress] =
+    useState<string[]>([]);
 
-  // Local storage keys and helpers
-  const LOCAL_TOPIC_VIDEOS_KEY = "pm_topic_videos";
+  const [notes, setNotes] =
+    useState<{ [topicId: string]: string }>({});
 
-  // Load from local storage on mount (global objects and user session)
+  const [bookmarks, setBookmarks] =
+    useState<
+      {
+        id: string;
+        type: "topic" | "project" | "case";
+        title: string;
+      }[]
+    >([]);
+
+  const [submissions, setSubmissions] =
+    useState<Submission[]>([]);
+
+  const [streak, setStreak] =
+    useState(0);
+
+  const [lastStudyDate, setLastStudyDate] =
+    useState<string | null>(null);
+
+  const [customTopics, setCustomTopics] =
+    useState<typeof TOPICS>([]);
+
+  const [topicVideos, setTopicVideos] =
+    useState<{ [topicId: string]: string[] }>({});
+
+  const [initialized, setInitialized] =
+    useState(false);
+
+  const LOCAL_TOPIC_VIDEOS_KEY =
+    "pm_topic_videos";
+
+  const allTopics = [
+    ...TOPICS,
+    ...customTopics
+  ];
+
+  // ==========================================================
+  // INITIAL LOCAL CACHE
+  // ==========================================================
+
   useEffect(() => {
-    const storedUser = localStorage.getItem("pm_user");
-    const storedSubmissions = localStorage.getItem("pm_submissions");
-    const storedCustomTopics = localStorage.getItem("pm_custom_topics");
-    const storedTopicVideos = localStorage.getItem(LOCAL_TOPIC_VIDEOS_KEY);
+    const storedUser =
+      localStorage.getItem("pm_user");
+
+    const storedCustomTopics =
+      localStorage.getItem("pm_custom_topics");
+
+    const storedSubmissions =
+      localStorage.getItem("pm_submissions");
+
+    const storedVideos =
+      localStorage.getItem(
+        LOCAL_TOPIC_VIDEOS_KEY
+      );
 
     if (storedUser) {
-      setUser(JSON.parse(storedUser));
-    }
-    if (storedCustomTopics) {
-      setCustomTopics(JSON.parse(storedCustomTopics));
+      try {
+        setUser(JSON.parse(storedUser));
+      } catch {}
     }
 
-    if (storedTopicVideos) {
+    if (storedCustomTopics) {
       try {
-        setTopicVideos(JSON.parse(storedTopicVideos));
-      } catch (e) {
-        // ignore parse errors
-      }
+        setCustomTopics(
+          JSON.parse(storedCustomTopics)
+        );
+      } catch {}
     }
 
     if (storedSubmissions) {
-      setSubmissions(JSON.parse(storedSubmissions));
-    } else {
-      const sampleSubmissions: PlatformContextType["submissions"] = [
-        {
-          id: "sub-1",
-          topicId: "t-1-1",
-          resourceTitle: "Shreyas Doshi on PM Competencies",
-          link: "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
-          type: "Video",
-          contributorName: "Shreyas Doshi",
-          contributorEmail: "shreyas@productlead.co",
-          status: "Pending",
-          submittedAt: "2026-07-29T10:30:00.000Z"
-        },
-        {
-          id: "sub-2",
-          topicId: "t-14-2",
-          resourceTitle: "Andrej Karpathy - Let's build GPT: from scratch",
-          link: "https://www.youtube.com/watch?v=kCc8FmEb1nY",
-          type: "Video",
-          contributorName: "Andrej Karpathy",
-          contributorEmail: "andrej@karpathy.ai",
-          status: "Pending",
-          submittedAt: "2026-07-30T08:15:00.000Z"
-        }
-      ];
-      setSubmissions(sampleSubmissions);
-      localStorage.setItem("pm_submissions", JSON.stringify(sampleSubmissions));
+      try {
+        setSubmissions(
+          JSON.parse(storedSubmissions)
+        );
+      } catch {}
     }
+
+    if (storedVideos) {
+      try {
+        setTopicVideos(
+          JSON.parse(storedVideos)
+        );
+      } catch {}
+    }
+
     setInitialized(true);
   }, []);
 
-  // After initialization, fetch shared topic videos from server (Supabase) so admin-added links are visible to all users
+  // ==========================================================
+  // LOAD CUSTOM TOPICS FROM SUPABASE
+  // ==========================================================
+
   useEffect(() => {
     if (!initialized) return;
 
-    const fetchTopicVideos = async () => {
+    const loadTopics = async () => {
       try {
-        const res = await fetch("/api/topic-videos");
-        if (res.ok) {
-          const data = await res.json();
-          // data expected: array of { topic_id, url }
-          const map: { [topicId: string]: string[] } = {};
-          data.forEach((row: any) => {
-            if (!map[row.topic_id]) map[row.topic_id] = [];
-            map[row.topic_id].push(row.url);
-          });
-          // Merge with existing local topicVideos to preserve local-only custom topics
-          setTopicVideos((prev) => {
-            const merged = { ...prev };
-            Object.keys(map).forEach((t) => {
-              const existing = merged[t] || [];
-              // avoid duplicates
-              merged[t] = Array.from(new Set([...existing, ...map[t]]));
-            });
-            // persist to localStorage for fast load next time
-            try {
-              localStorage.setItem(LOCAL_TOPIC_VIDEOS_KEY, JSON.stringify(merged));
-            } catch (e) {}
-            return merged;
-          });
-        } else {
-          // fallback handled by existing local storage
-        }
-      } catch (e) {
-        // network error: keep using local cache
+        const response =
+          await fetch(
+            "/api/admin/topics"
+          );
+
+        if (!response.ok) return;
+
+        const data = await response.json();
+
+        const mapped = data.map(
+          (row: any) => ({
+            id: row.id,
+            moduleId: Number(
+              row.module_id
+            ),
+            title: row.title,
+            duration:
+              row.duration || "15 mins",
+            youtubeId:
+              row.youtube_id || "",
+            notesTemplate:
+              row.notes_template || "",
+            exercise:
+              row.exercise || ""
+          })
+        );
+
+        setCustomTopics(mapped);
+
+        localStorage.setItem(
+          "pm_custom_topics",
+          JSON.stringify(mapped)
+        );
+      } catch {
+        // local cache remains fallback
       }
     };
 
-    fetchTopicVideos();
+    loadTopics();
   }, [initialized]);
 
-  // Load user-specific tracking spaces when user session loads/changes
+  // ==========================================================
+  // LOAD TOPIC VIDEOS FROM SUPABASE
+  // ==========================================================
+
   useEffect(() => {
     if (!initialized) return;
 
-    if (user) {
-      const email = user.email;
-      const storedProgress = localStorage.getItem(`pm_${email}_progress`);
-      const storedNotes = localStorage.getItem(`pm_${email}_notes`);
-      const storedBookmarks = localStorage.getItem(`pm_${email}_bookmarks`);
-      const storedStreak = localStorage.getItem(`pm_${email}_streak`);
-      const storedLastStudy = localStorage.getItem(`pm_${email}_last_study_date`);
+    const loadVideos = async () => {
+      try {
+        const response =
+          await fetch(
+            "/api/topic-videos"
+          );
 
-      setProgress(storedProgress ? JSON.parse(storedProgress) : []);
-      setNotes(storedNotes ? JSON.parse(storedNotes) : {});
-      setBookmarks(storedBookmarks ? JSON.parse(storedBookmarks) : []);
-      setStreak(storedStreak ? Number(storedStreak) || 0 : 0);
-      setLastStudyDate(storedLastStudy || null);
-    } else {
-      // Clean states on logout
+        if (!response.ok) return;
+
+        const data =
+          await response.json();
+
+        const map: {
+          [topicId: string]: string[];
+        } = {};
+
+        data.forEach((row: any) => {
+          if (!map[row.topic_id]) {
+            map[row.topic_id] = [];
+          }
+
+          map[row.topic_id].push(
+            row.url
+          );
+        });
+
+        setTopicVideos(map);
+
+        localStorage.setItem(
+          LOCAL_TOPIC_VIDEOS_KEY,
+          JSON.stringify(map)
+        );
+      } catch {
+        // local cache remains fallback
+      }
+    };
+
+    loadVideos();
+  }, [initialized]);
+
+  // ==========================================================
+  // LOAD ADMIN CONTRIBUTIONS FROM DATABASE
+  // ==========================================================
+
+  useEffect(() => {
+    if (
+      !initialized ||
+      user?.role !== "admin"
+    ) {
+      return;
+    }
+
+    const loadContributions =
+      async () => {
+        /*
+         * Existing demo authentication is
+         * client-side, so the API requires
+         * admin credentials when needed.
+         *
+         * If credentials are not supplied,
+         * the existing local cache remains.
+         */
+      };
+
+    loadContributions();
+  }, [initialized, user?.role]);
+
+  // ==========================================================
+  // LOAD USER DATA
+  // ==========================================================
+
+  useEffect(() => {
+    if (!initialized) return;
+
+    if (!user) {
       setProgress([]);
       setNotes({});
       setBookmarks([]);
       setStreak(0);
       setLastStudyDate(null);
+      return;
     }
+
+    const email =
+      user.email;
+
+    const storedProgress =
+      localStorage.getItem(
+        `pm_${email}_progress`
+      );
+
+    const storedNotes =
+      localStorage.getItem(
+        `pm_${email}_notes`
+      );
+
+    const storedBookmarks =
+      localStorage.getItem(
+        `pm_${email}_bookmarks`
+      );
+
+    const storedStreak =
+      localStorage.getItem(
+        `pm_${email}_streak`
+      );
+
+    const storedLastStudy =
+      localStorage.getItem(
+        `pm_${email}_last_study_date`
+      );
+
+    setProgress(
+      storedProgress
+        ? JSON.parse(storedProgress)
+        : []
+    );
+
+    setNotes(
+      storedNotes
+        ? JSON.parse(storedNotes)
+        : {}
+    );
+
+    setBookmarks(
+      storedBookmarks
+        ? JSON.parse(storedBookmarks)
+        : []
+    );
+
+    setStreak(
+      storedStreak
+        ? Number(storedStreak)
+        : 0
+    );
+
+    setLastStudyDate(
+      storedLastStudy || null
+    );
   }, [user, initialized]);
 
-  // Persist user session changes
+  // ==========================================================
+  // USER SESSION
+  // ==========================================================
+
   useEffect(() => {
     if (!initialized) return;
+
     if (user) {
-      localStorage.setItem("pm_user", JSON.stringify(user));
+      localStorage.setItem(
+        "pm_user",
+        JSON.stringify(user)
+      );
     } else {
-      localStorage.removeItem("pm_user");
+      localStorage.removeItem(
+        "pm_user"
+      );
     }
   }, [user, initialized]);
 
-  // Persist namespaced learner telemetry
-  useEffect(() => {
-    if (!initialized || !user) return;
-    localStorage.setItem(`pm_${user.email}_progress`, JSON.stringify(progress));
-  }, [progress, user, initialized]);
+  // ==========================================================
+  // LEARNER CACHE
+  // ==========================================================
 
   useEffect(() => {
-    if (!initialized || !user) return;
-    localStorage.setItem(`pm_${user.email}_notes`, JSON.stringify(notes));
-  }, [notes, user, initialized]);
+    if (!initialized || !user)
+      return;
+
+    localStorage.setItem(
+      `pm_${user.email}_progress`,
+      JSON.stringify(progress)
+    );
+  }, [
+    progress,
+    user,
+    initialized
+  ]);
 
   useEffect(() => {
-    if (!initialized || !user) return;
-    localStorage.setItem(`pm_${user.email}_bookmarks`, JSON.stringify(bookmarks));
-  }, [bookmarks, user, initialized]);
+    if (!initialized || !user)
+      return;
+
+    localStorage.setItem(
+      `pm_${user.email}_notes`,
+      JSON.stringify(notes)
+    );
+  }, [
+    notes,
+    user,
+    initialized
+  ]);
 
   useEffect(() => {
-    if (!initialized || !user) return;
-    localStorage.setItem(`pm_${user.email}_streak`, String(streak));
-  }, [streak, user, initialized]);
+    if (!initialized || !user)
+      return;
+
+    localStorage.setItem(
+      `pm_${user.email}_bookmarks`,
+      JSON.stringify(bookmarks)
+    );
+  }, [
+    bookmarks,
+    user,
+    initialized
+  ]);
 
   useEffect(() => {
-    if (!initialized || !user) return;
-    localStorage.setItem(`pm_${user.email}_last_study_date`, lastStudyDate || "");
-  }, [lastStudyDate, user, initialized]);
+    if (!initialized || !user)
+      return;
 
-  // Persist global administrative & catalog changes
+    localStorage.setItem(
+      `pm_${user.email}_streak`,
+      String(streak)
+    );
+  }, [
+    streak,
+    user,
+    initialized
+  ]);
+
+  useEffect(() => {
+    if (!initialized || !user)
+      return;
+
+    localStorage.setItem(
+      `pm_${user.email}_last_study_date`,
+      lastStudyDate || ""
+    );
+  }, [
+    lastStudyDate,
+    user,
+    initialized
+  ]);
+
+  // ==========================================================
+  // CACHE ADMIN DATA
+  //
+  // These are ONLY caches.
+  // Supabase is the source of truth.
+  // ==========================================================
+
   useEffect(() => {
     if (!initialized) return;
-    localStorage.setItem("pm_submissions", JSON.stringify(submissions));
-  }, [submissions, initialized]);
+
+    localStorage.setItem(
+      "pm_custom_topics",
+      JSON.stringify(customTopics)
+    );
+  }, [
+    customTopics,
+    initialized
+  ]);
 
   useEffect(() => {
     if (!initialized) return;
-    localStorage.setItem("pm_custom_topics", JSON.stringify(customTopics));
-  }, [customTopics, initialized]);
+
+    localStorage.setItem(
+      "pm_submissions",
+      JSON.stringify(submissions)
+    );
+  }, [
+    submissions,
+    initialized
+  ]);
 
   useEffect(() => {
     if (!initialized) return;
-    try {
-      localStorage.setItem(LOCAL_TOPIC_VIDEOS_KEY, JSON.stringify(topicVideos));
-    } catch (e) {}
-  }, [topicVideos, initialized]);
 
-  const login = (name: string, email: string, role: "learner" | "admin") => {
-    setUser({ name, email, role });
-    // If logging in, initialize default progress if empty
-    if (progress.length === 0) {
-      setProgress([]);
-    }
+    localStorage.setItem(
+      LOCAL_TOPIC_VIDEOS_KEY,
+      JSON.stringify(topicVideos)
+    );
+  }, [
+    topicVideos,
+    initialized
+  ]);
+
+  // ==========================================================
+  // LOGIN / LOGOUT
+  // ==========================================================
+
+  const login = (
+    name: string,
+    email: string,
+    role: "learner" | "admin"
+  ) => {
+    setUser({
+      name,
+      email,
+      role
+    });
   };
 
   const logout = () => {
     setUser(null);
   };
 
-  const toggleTopicCompletion = (topicId: string) => {
-    setProgress((prev) => {
-      const isCompleted = prev.includes(topicId);
-      let updated;
-      if (isCompleted) {
-        updated = prev.filter((id) => id !== topicId);
-      } else {
-        updated = [...prev, topicId];
-        // Calculate streak update when completing a new topic
-        updateStreak();
-      }
-      return updated;
-    });
-  };
+  // ==========================================================
+  // PROGRESS
+  // ==========================================================
 
   const updateStreak = () => {
-    const today = new Date().toISOString().split("T")[0];
-    if (lastStudyDate === today) return; // already studied today
+    const today =
+      new Date()
+        .toISOString()
+        .split("T")[0];
 
-    if (lastStudyDate) {
-      const lastDate = new Date(lastStudyDate);
-      const currentDate = new Date(today);
-      const diffTime = Math.abs(currentDate.getTime() - lastDate.getTime());
-      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    if (lastStudyDate === today)
+      return;
 
-      if (diffDays === 1) {
-        setStreak((prev) => prev + 1);
-      } else if (diffDays > 1) {
+    if (!lastStudyDate) {
+      setStreak(1);
+    } else {
+      const previous =
+        new Date(lastStudyDate);
+
+      const current =
+        new Date(today);
+
+      const difference =
+        Math.round(
+          (current.getTime() -
+            previous.getTime()) /
+            (1000 * 60 * 60 * 24)
+        );
+
+      if (difference === 1) {
+        setStreak(
+          (value) => value + 1
+        );
+      } else {
         setStreak(1);
       }
-    } else {
-      setStreak(1);
     }
+
     setLastStudyDate(today);
   };
 
-  const saveNote = (topicId: string, text: string) => {
-    setNotes((prev) => ({ ...prev, [topicId]: text }));
-  };
-
-  const toggleBookmark = (id: string, type: "topic" | "project" | "case", title: string) => {
-    setBookmarks((prev) => {
-      const index = prev.findIndex((b) => b.id === id);
-      if (index !== -1) {
-        return prev.filter((b) => b.id !== id);
-      } else {
-        return [...prev, { id, type, title }];
+  const toggleTopicCompletion = (
+    topicId: string
+  ) => {
+    setProgress((previous) => {
+      if (
+        previous.includes(topicId)
+      ) {
+        return previous.filter(
+          (id) => id !== topicId
+        );
       }
+
+      updateStreak();
+
+      return [
+        ...previous,
+        topicId
+      ];
     });
   };
 
-  const isBookmarked = (id: string) => {
-    return bookmarks.some((b) => b.id === id);
+  // ==========================================================
+  // NOTES
+  // ==========================================================
+
+  const saveNote = (
+    topicId: string,
+    text: string
+  ) => {
+    setNotes((previous) => ({
+      ...previous,
+      [topicId]: text
+    }));
   };
 
-  const addSubmission = (sub: {
-    topicId: string;
-    resourceTitle: string;
-    link: string;
-    type: string;
-    contributorName: string;
-    contributorEmail: string;
-    suggestedTopicTitle?: string;
-    suggestedTopicDuration?: string;
-    moduleId?: number;
-  }) => {
-    const newSub: PlatformContextType["submissions"][0] = {
+  // ==========================================================
+  // BOOKMARKS
+  // ==========================================================
+
+  const toggleBookmark = (
+    id: string,
+    type:
+      | "topic"
+      | "project"
+      | "case",
+    title: string
+  ) => {
+    setBookmarks((previous) => {
+      const exists =
+        previous.some(
+          (bookmark) =>
+            bookmark.id === id
+        );
+
+      if (exists) {
+        return previous.filter(
+          (bookmark) =>
+            bookmark.id !== id
+        );
+      }
+
+      return [
+        ...previous,
+        {
+          id,
+          type,
+          title
+        }
+      ];
+    });
+  };
+
+  const isBookmarked = (
+    id: string
+  ) => {
+    return bookmarks.some(
+      (bookmark) =>
+        bookmark.id === id
+    );
+  };
+
+  // ==========================================================
+  // USER CONTRIBUTION
+  // ==========================================================
+
+  const addSubmission = async (
+    sub: {
+      topicId: string;
+      resourceTitle: string;
+      link: string;
+      type: string;
+      contributorName: string;
+      contributorEmail: string;
+      suggestedTopicTitle?: string;
+      suggestedTopicDuration?: string;
+      moduleId?: number;
+    }
+  ) => {
+    const newSubmission: Submission = {
       ...sub,
       id: `sub-${Date.now()}`,
       status: "Pending",
-      submittedAt: new Date().toISOString()
+      submittedAt:
+        new Date().toISOString()
     };
-    setSubmissions((prev) => [newSub, ...prev]);
+
+    /*
+     * DATABASE FIRST
+     */
+
+    const response =
+      await fetch(
+        "/api/contributions",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type":
+              "application/json"
+          },
+          body: JSON.stringify(
+            newSubmission
+          )
+        }
+      );
+
+    if (!response.ok) {
+      throw new Error(
+        "Could not save contribution to database."
+      );
+    }
+
+    const saved =
+      await response.json();
+
+    /*
+     * Update browser cache
+     */
+
+    setSubmissions(
+      (previous) => [
+        saved,
+        ...previous
+      ]
+    );
   };
 
-  // Updated: when approving a submission, persist video links to Supabase via API
-  const updateSubmissionStatus = async (id: string, status: "Approved" | "Rejected") => {
-    setSubmissions((prev) =>
-      prev.map((sub) => {
-        if (sub.id === id) {
-          return { ...sub, status };
-        }
-        return sub;
-      })
-    );
+  // ==========================================================
+  // ADMIN APPROVE / REJECT
+  // ==========================================================
 
-    const sub = submissions.find((s) => s.id === id);
-    if (!sub) return;
+  const updateSubmissionStatus =
+    async (
+      id: string,
+      status:
+        | "Approved"
+        | "Rejected"
+    ) => {
+      const submission =
+        submissions.find(
+          (item) => item.id === id
+        );
 
-    if (status === "Approved") {
-      if (sub.suggestedTopicTitle) {
-        // add as a custom topic locally (and you may want to persist custom topics in future)
-        addTopic(sub.moduleId || 1, sub.suggestedTopicTitle, sub.suggestedTopicDuration || "15 mins", sub.link);
-      } else if (sub.type === "Video") {
-        try {
-          // call server API to persist the topic video (server will check admin session)
-          await fetch("/api/topic-videos", {
+      if (!submission) return;
+
+      /*
+       * IMPORTANT:
+       *
+       * Your current application has
+       * client-side admin authentication.
+       *
+       * The admin cache-sync page uses
+       * Basic Auth for server operations.
+       *
+       * For production, replace the current
+       * login system with a real auth provider.
+       */
+
+      const username =
+        window.prompt(
+          "Admin username"
+        );
+
+      const password =
+        window.prompt(
+          "Admin password"
+        );
+
+      if (!username || !password) {
+        return;
+      }
+
+      const auth =
+        "Basic " +
+        btoa(
+          `${username}:${password}`
+        );
+
+      const response =
+        await fetch(
+          "/api/contributions",
+          {
+            method: "PATCH",
+            headers: {
+              "Content-Type":
+                "application/json",
+              Authorization: auth
+            },
+            body: JSON.stringify({
+              id,
+              status,
+              reviewedBy:
+                user?.email || username
+            })
+          }
+        );
+
+      if (!response.ok) {
+        alert(
+          "Could not update contribution in Supabase."
+        );
+        return;
+      }
+
+      /*
+       * Update local cache
+       */
+
+      setSubmissions(
+        (previous) =>
+          previous.map(
+            (item) =>
+              item.id === id
+                ? {
+                    ...item,
+                    status
+                  }
+                : item
+          )
+      );
+
+      /*
+       * If approved video, save the video
+       * into the permanent topic_videos table.
+       */
+
+      if (
+        status === "Approved" &&
+        submission.type === "Video"
+      ) {
+        await fetch(
+          "/api/topic-videos",
+          {
             method: "POST",
             headers: {
-              "Content-Type": "application/json"
+              "Content-Type":
+                "application/json",
+              Authorization: auth
             },
-            body: JSON.stringify({ topicId: sub.topicId, url: sub.link, adminUser: user })
-          });
-          // on success, the server will be the source of truth; we will re-fetch topic videos in background
-          const res = await fetch("/api/topic-videos");
-          if (res.ok) {
-            const data = await res.json();
-            const map: { [topicId: string]: string[] } = {};
-            data.forEach((row: any) => {
-              if (!map[row.topic_id]) map[row.topic_id] = [];
-              map[row.topic_id].push(row.url);
-            });
-            setTopicVideos((prev) => {
-              const merged = { ...prev };
-              Object.keys(map).forEach((t) => {
-                const existing = merged[t] || [];
-                merged[t] = Array.from(new Set([...existing, ...map[t]]));
-              });
-              try {
-                localStorage.setItem(LOCAL_TOPIC_VIDEOS_KEY, JSON.stringify(merged));
-              } catch (e) {}
-              return merged;
-            });
+            body: JSON.stringify({
+              topicId:
+                submission.topicId,
+              url:
+                submission.link,
+              adminUser: {
+                email:
+                  user?.email ||
+                  username
+              }
+            })
           }
-        } catch (e) {
-          // fall back to local-only behavior
-          setTopicVideos((prev) => {
-            const prevList = prev[sub.topicId] || [];
-            if (prevList.includes(sub.link)) return prev;
-            return { ...prev, [sub.topicId]: [...prevList, sub.link] };
-          });
-        }
-      }
-    }
-  };
+        );
 
-  const addTopic = (moduleId: number, title: string, duration: string, videoUrl: string) => {
-    const newTopicId = `t-custom-${Date.now()}`;
+        setTopicVideos(
+          (previous) => {
+            const existing =
+              previous[
+                submission.topicId
+              ] || [];
+
+            if (
+              existing.includes(
+                submission.link
+              )
+            ) {
+              return previous;
+            }
+
+            return {
+              ...previous,
+              [submission.topicId]: [
+                ...existing,
+                submission.link
+              ]
+            };
+          }
+        );
+      }
+
+      /*
+       * If the contributor suggested a new topic,
+       * create it permanently in Supabase.
+       */
+
+      if (
+        status === "Approved" &&
+        submission.suggestedTopicTitle
+      ) {
+        await addTopic(
+          submission.moduleId || 1,
+          submission.suggestedTopicTitle,
+          submission.suggestedTopicDuration ||
+            "15 mins",
+          submission.link
+        );
+      }
+    };
+
+  // ==========================================================
+  // ADMIN CREATE TOPIC
+  // ==========================================================
+
+  const addTopic = async (
+    moduleId: number,
+    title: string,
+    duration: string,
+    videoUrl: string
+  ) => {
+    const newTopicId =
+      `t-custom-${Date.now()}`;
+
     const newTopic = {
       id: newTopicId,
       moduleId,
       title,
-      duration,
-      youtubeId: videoUrl,
-      notesTemplate: `## Lecture Notes: ${title}\n\n- Key Concept 1:\n- Key Concept 2:\n- Strategic Takeaway:\n`,
-      exercise: "Reflect on how this concept impacts product engineering and list three primary execution metrics."
+      duration:
+        duration || "15 mins",
+      youtubeId:
+        videoUrl || "",
+      notesTemplate:
+        `## Lecture Notes: ${title}\n\n- Key Concept 1:\n- Key Concept 2:\n- Strategic Takeaway:\n`,
+      exercise:
+        "Reflect on how this concept impacts product management and list three useful execution metrics."
     };
-    setCustomTopics((prev) => [...prev, newTopic]);
-    setTopicVideos((prevMap) => ({
-      ...prevMap,
-      [newTopicId]: videoUrl ? [videoUrl] : []
-    }));
-  };
 
-  // Updated: addTopicVideo persists to server (Supabase) via API, then updates local cache
-  const addTopicVideo = async (topicId: string, url: string) => {
-    // optimistic local update
-    setTopicVideos((prevMap) => {
-      const prevList = prevMap[topicId] || [];
-      if (prevList.includes(url)) return prevMap;
-      return {
-        ...prevMap,
-        [topicId]: [...prevList, url]
-      };
-    });
+    /*
+     * Ask admin for credentials.
+     *
+     * This is temporary because the current app
+     * does not have server-side authentication.
+     */
 
-    try {
-      await fetch("/api/topic-videos", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ topicId, url, adminUser: user })
-      });
-      // re-fetch authoritative list
-      const res = await fetch("/api/topic-videos");
-      if (res.ok) {
-        const data = await res.json();
-        const map: { [topicId: string]: string[] } = {};
-        data.forEach((row: any) => {
-          if (!map[row.topic_id]) map[row.topic_id] = [];
-          map[row.topic_id].push(row.url);
-        });
-        setTopicVideos((prev) => {
-          const merged = { ...prev };
-          Object.keys(map).forEach((t) => {
-            const existing = merged[t] || [];
-            merged[t] = Array.from(new Set([...existing, ...map[t]]));
-          });
-          try {
-            localStorage.setItem(LOCAL_TOPIC_VIDEOS_KEY, JSON.stringify(merged));
-          } catch (e) {}
-          return merged;
-        });
-      }
-    } catch (e) {
-      // network error: we already did optimistic update
+    const username =
+      window.prompt(
+        "Admin username"
+      );
+
+    const password =
+      window.prompt(
+        "Admin password"
+      );
+
+    if (!username || !password) {
+      return;
+    }
+
+    const auth =
+      "Basic " +
+      btoa(
+        `${username}:${password}`
+      );
+
+    const response =
+      await fetch(
+        "/api/admin/topics",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type":
+              "application/json",
+            Authorization: auth
+          },
+          body: JSON.stringify({
+            ...newTopic,
+            adminUser: {
+              email:
+                user?.email ||
+                username
+            }
+          })
+        }
+      );
+
+    if (!response.ok) {
+      alert(
+        "Could not save topic to Supabase."
+      );
+      return;
+    }
+
+    setCustomTopics(
+      (previous) => [
+        ...previous,
+        newTopic as any
+      ]
+    );
+
+    if (videoUrl) {
+      await addTopicVideo(
+        newTopicId,
+        videoUrl
+      );
     }
   };
 
-  const removeTopicVideo = (topicId: string, index: number) => {
-    setTopicVideos((prevMap) => {
-      const prevList = prevMap[topicId] || [];
-      const updated = prevList.filter((_, idx) => idx !== index);
-      return {
-        ...prevMap,
-        [topicId]: updated
-      };
-    });
-    // TODO: optionally call API to remove from server-side table if needed
+  // ==========================================================
+  // ADD VIDEO
+  // ==========================================================
+
+  const addTopicVideo = async (
+    topicId: string,
+    url: string
+  ) => {
+    const username =
+      window.prompt(
+        "Admin username"
+      );
+
+    const password =
+      window.prompt(
+        "Admin password"
+      );
+
+    if (!username || !password) {
+      return;
+    }
+
+    const auth =
+      "Basic " +
+      btoa(
+        `${username}:${password}`
+      );
+
+    const response =
+      await fetch(
+        "/api/topic-videos",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type":
+              "application/json",
+            Authorization: auth
+          },
+          body: JSON.stringify({
+            topicId,
+            url,
+            adminUser: {
+              email:
+                user?.email ||
+                username
+            }
+          })
+        }
+      );
+
+    if (!response.ok) {
+      alert(
+        "Could not save video to Supabase."
+      );
+      return;
+    }
+
+    setTopicVideos(
+      (previous) => {
+        const existing =
+          previous[topicId] || [];
+
+        if (
+          existing.includes(url)
+        ) {
+          return previous;
+        }
+
+        return {
+          ...previous,
+          [topicId]: [
+            ...existing,
+            url
+          ]
+        };
+      }
+    );
   };
-  const getModuleProgress = (moduleId: number) => {
-    const module = MODULES.find((m) => m.id === moduleId);
+
+  const removeTopicVideo = (
+    topicId: string,
+    index: number
+  ) => {
+    setTopicVideos(
+      (previous) => {
+        const videos =
+          previous[topicId] || [];
+
+        return {
+          ...previous,
+          [topicId]:
+            videos.filter(
+              (_, i) =>
+                i !== index
+            )
+        };
+      }
+    );
+  };
+
+  // ==========================================================
+  // PROGRESS CALCULATIONS
+  // ==========================================================
+
+  const getModuleProgress = (
+    moduleId: number
+  ) => {
+    const module =
+      MODULES.find(
+        (item) =>
+          item.id === moduleId
+      );
+
     if (!module) return 0;
 
-    // Filter topics belonging to this module
-    const moduleTopics = TOPICS.filter((t) => t.moduleId === moduleId);
-    if (moduleTopics.length === 0) return 0;
+    const moduleTopics =
+      allTopics.filter(
+        (topic) =>
+          topic.moduleId ===
+          moduleId
+      );
 
-    const completedInModule = moduleTopics.filter((t) => progress.includes(t.id)).length;
-    return Math.round((completedInModule / moduleTopics.length) * 100);
+    if (!moduleTopics.length)
+      return 0;
+
+    const completed =
+      moduleTopics.filter(
+        (topic) =>
+          progress.includes(
+            topic.id
+          )
+      ).length;
+
+    return Math.round(
+      (completed /
+        moduleTopics.length) *
+        100
+    );
   };
 
-  const getPhaseProgress = (phaseId: number) => {
-    const phaseModules = MODULES.filter((m) => m.phaseId === phaseId);
-    if (phaseModules.length === 0) return 0;
+  const getPhaseProgress = (
+    phaseId: number
+  ) => {
+    const phaseTopics =
+      allTopics.filter(
+        (topic) => {
+          const module =
+            MODULES.find(
+              (item) =>
+                item.id ===
+                topic.moduleId
+            );
 
-    const totalTopicsInPhase = TOPICS.filter((t) => {
-      const module = MODULES.find((m) => m.id === t.moduleId);
-      return module?.phaseId === phaseId;
-    });
+          return (
+            module?.phaseId ===
+            phaseId
+          );
+        }
+      );
 
-    if (totalTopicsInPhase.length === 0) return 0;
+    if (!phaseTopics.length)
+      return 0;
 
-    const completedInPhase = totalTopicsInPhase.filter((t) => progress.includes(t.id)).length;
-    return Math.round((completedInPhase / totalTopicsInPhase.length) * 100);
+    const completed =
+      phaseTopics.filter(
+        (topic) =>
+          progress.includes(
+            topic.id
+          )
+      ).length;
+
+    return Math.round(
+      (completed /
+        phaseTopics.length) *
+        100
+    );
   };
 
-  const getOverallProgress = () => {
-    if (TOPICS.length === 0) return 0;
-    const completed = TOPICS.filter((t) => progress.includes(t.id)).length;
-    return Math.round((completed / TOPICS.length) * 100);
-  };
+  const getOverallProgress =
+    () => {
+      if (!allTopics.length)
+        return 0;
+
+      const completed =
+        allTopics.filter(
+          (topic) =>
+            progress.includes(
+              topic.id
+            )
+        ).length;
+
+      return Math.round(
+        (completed /
+          allTopics.length) *
+          100
+      );
+    };
 
   return (
     <PlatformContext.Provider
@@ -517,19 +1253,27 @@ export const PlatformProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         submissions,
         streak,
         lastStudyDate,
+
         login,
         logout,
+
         toggleTopicCompletion,
         saveNote,
+
         toggleBookmark,
         isBookmarked,
+
         addSubmission,
         updateSubmissionStatus,
+
         allTopics,
+
         topicVideos,
+
         addTopic,
         addTopicVideo,
         removeTopicVideo,
+
         getModuleProgress,
         getPhaseProgress,
         getOverallProgress
@@ -540,10 +1284,18 @@ export const PlatformProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   );
 };
 
-export const usePlatform = () => {
-  const context = useContext(PlatformContext);
-  if (context === undefined) {
-    throw new Error("usePlatform must be used within a PlatformProvider");
-  }
-  return context;
-};
+export const usePlatform =
+  () => {
+    const context =
+      useContext(
+        PlatformContext
+      );
+
+    if (!context) {
+      throw new Error(
+        "usePlatform must be used within PlatformProvider"
+      );
+    }
+
+    return context;
+  };
