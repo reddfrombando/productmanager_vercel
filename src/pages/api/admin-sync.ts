@@ -11,11 +11,13 @@ const SUPABASE_URL =
 const SERVICE_KEY =
   process.env.SUPABASE_SERVICE_ROLE_KEY as string;
 
+
 type SyncResult = {
   attempted: number;
   synced: number;
   verified: number;
 };
+
 
 type SyncResults = {
   topics: SyncResult;
@@ -23,6 +25,7 @@ type SyncResults = {
   videos: SyncResult;
   calendar: SyncResult;
 };
+
 
 function supabaseHeaders() {
   return {
@@ -32,6 +35,7 @@ function supabaseHeaders() {
   };
 }
 
+
 function emptyResult(): SyncResult {
   return {
     attempted: 0,
@@ -40,19 +44,22 @@ function emptyResult(): SyncResult {
   };
 }
 
+
+/* ============================================================
+   GENERIC SUPABASE UPSERT
+============================================================ */
+
 async function upsertRows(
   table: string,
   rows: any[]
-): Promise<{
-  attempted: number;
-  synced: number;
-}> {
+) {
   if (!rows.length) {
     return {
       attempted: 0,
       synced: 0
     };
   }
+
 
   const response = await fetch(
     `${SUPABASE_URL}/rest/v1/${table}`,
@@ -66,25 +73,34 @@ async function upsertRows(
           "resolution=merge-duplicates,return=representation"
       },
 
-      body: JSON.stringify(rows)
+      body:
+        JSON.stringify(rows)
     }
   );
 
+
   if (!response.ok) {
-    const errorText = await response.text();
+    const errorText =
+      await response.text();
 
     throw new Error(
       `${table} insert failed: ${errorText}`
     );
   }
 
-  const data = await response.json();
+
+  const data =
+    await response.json();
+
 
   return {
-    attempted: rows.length,
-    synced: Array.isArray(data)
-      ? data.length
-      : rows.length
+    attempted:
+      rows.length,
+
+    synced:
+      Array.isArray(data)
+        ? data.length
+        : rows.length
   };
 }
 
@@ -95,40 +111,53 @@ async function upsertRows(
 
 async function verifyTopics(
   rows: any[]
-): Promise<number> {
-  if (!rows.length) return 0;
+) {
+  if (!rows.length)
+    return 0;
 
-  const ids = rows
-    .map((row) => row.id)
-    .filter(Boolean);
 
-  const filter = ids
-    .map(
-      (id) =>
-        `"${String(id).replace(/"/g, '\\"')}"`
-    )
-    .join(",");
+  let verified = 0;
 
-  const response = await fetch(
-    `${SUPABASE_URL}/rest/v1/topic_content?id=in.(${encodeURIComponent(
-      filter
-    )})&select=id`,
-    {
-      headers: supabaseHeaders()
+
+  for (const row of rows) {
+
+    const id =
+      encodeURIComponent(
+        String(row.id)
+      );
+
+
+    const response =
+      await fetch(
+        `${SUPABASE_URL}/rest/v1/topic_content?id=eq.${id}&select=id`,
+        {
+          headers:
+            supabaseHeaders()
+        }
+      );
+
+
+    if (!response.ok) {
+      throw new Error(
+        `Topic verification failed: ${await response.text()}`
+      );
     }
-  );
 
-  if (!response.ok) {
-    throw new Error(
-      `Topic verification failed: ${await response.text()}`
-    );
+
+    const data =
+      await response.json();
+
+
+    if (
+      Array.isArray(data) &&
+      data.length > 0
+    ) {
+      verified++;
+    }
   }
 
-  const data = await response.json();
 
-  return Array.isArray(data)
-    ? data.length
-    : 0;
+  return verified;
 }
 
 
@@ -138,40 +167,53 @@ async function verifyTopics(
 
 async function verifyContributions(
   rows: any[]
-): Promise<number> {
-  if (!rows.length) return 0;
+) {
+  if (!rows.length)
+    return 0;
 
-  const ids = rows
-    .map((row) => row.id)
-    .filter(Boolean);
 
-  const filter = ids
-    .map(
-      (id) =>
-        `"${String(id).replace(/"/g, '\\"')}"`
-    )
-    .join(",");
+  let verified = 0;
 
-  const response = await fetch(
-    `${SUPABASE_URL}/rest/v1/contributions?id=in.(${encodeURIComponent(
-      filter
-    )})&select=id`,
-    {
-      headers: supabaseHeaders()
+
+  for (const row of rows) {
+
+    const id =
+      encodeURIComponent(
+        String(row.id)
+      );
+
+
+    const response =
+      await fetch(
+        `${SUPABASE_URL}/rest/v1/contributions?id=eq.${id}&select=id`,
+        {
+          headers:
+            supabaseHeaders()
+        }
+      );
+
+
+    if (!response.ok) {
+      throw new Error(
+        `Contribution verification failed: ${await response.text()}`
+      );
     }
-  );
 
-  if (!response.ok) {
-    throw new Error(
-      `Contribution verification failed: ${await response.text()}`
-    );
+
+    const data =
+      await response.json();
+
+
+    if (
+      Array.isArray(data) &&
+      data.length > 0
+    ) {
+      verified++;
+    }
   }
 
-  const data = await response.json();
 
-  return Array.isArray(data)
-    ? data.length
-    : 0;
+  return verified;
 }
 
 
@@ -181,28 +223,37 @@ async function verifyContributions(
 
 async function verifyVideos(
   rows: any[]
-): Promise<number> {
-  if (!rows.length) return 0;
+) {
+  if (!rows.length)
+    return 0;
+
 
   let verified = 0;
 
+
   for (const row of rows) {
+
     const topicId =
       encodeURIComponent(
         String(row.topic_id)
       );
+
 
     const url =
       encodeURIComponent(
         String(row.url)
       );
 
-    const response = await fetch(
-      `${SUPABASE_URL}/rest/v1/topic_videos?topic_id=eq.${topicId}&url=eq.${url}&select=id`,
-      {
-        headers: supabaseHeaders()
-      }
-    );
+
+    const response =
+      await fetch(
+        `${SUPABASE_URL}/rest/v1/topic_videos?topic_id=eq.${topicId}&url=eq.${url}&select=id`,
+        {
+          headers:
+            supabaseHeaders()
+        }
+      );
+
 
     if (!response.ok) {
       throw new Error(
@@ -210,7 +261,10 @@ async function verifyVideos(
       );
     }
 
-    const data = await response.json();
+
+    const data =
+      await response.json();
+
 
     if (
       Array.isArray(data) &&
@@ -219,6 +273,7 @@ async function verifyVideos(
       verified++;
     }
   }
+
 
   return verified;
 }
@@ -226,42 +281,49 @@ async function verifyVideos(
 
 /* ============================================================
    VERIFY CALENDAR
+   IMPORTANT:
+   Uses EXISTING calendar_events table.
 ============================================================ */
 
 async function verifyCalendar(
   rows: any[]
-): Promise<number> {
-  if (!rows.length) return 0;
+) {
+  if (!rows.length)
+    return 0;
+
 
   let verified = 0;
 
+
   for (const row of rows) {
-    const userEmail =
+
+    const userId =
       encodeURIComponent(
-        String(row.user_email)
+        String(row.user_id)
       );
 
-    const itemType =
+
+    const title =
       encodeURIComponent(
-        String(row.item_type)
+        String(row.title)
       );
 
-    const itemId =
+
+    const startDate =
       encodeURIComponent(
-        String(row.item_id)
+        String(row.start_date)
       );
 
-    const scheduledDate =
-      encodeURIComponent(
-        String(row.scheduled_date)
+
+    const response =
+      await fetch(
+        `${SUPABASE_URL}/rest/v1/calendar_events?user_id=eq.${userId}&title=eq.${title}&start_date=eq.${startDate}&select=id`,
+        {
+          headers:
+            supabaseHeaders()
+        }
       );
 
-    const response = await fetch(
-      `${SUPABASE_URL}/rest/v1/study_calendar_events?user_email=eq.${userEmail}&item_type=eq.${itemType}&item_id=eq.${itemId}&scheduled_date=eq.${scheduledDate}&select=id`,
-      {
-        headers: supabaseHeaders()
-      }
-    );
 
     if (!response.ok) {
       throw new Error(
@@ -269,7 +331,10 @@ async function verifyCalendar(
       );
     }
 
-    const data = await response.json();
+
+    const data =
+      await response.json();
+
 
     if (
       Array.isArray(data) &&
@@ -278,6 +343,7 @@ async function verifyCalendar(
       verified++;
     }
   }
+
 
   return verified;
 }
@@ -291,7 +357,13 @@ export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse
 ) {
+
+  /* ----------------------------------------------------------
+     METHOD
+  ---------------------------------------------------------- */
+
   if (req.method !== "POST") {
+
     res.setHeader(
       "Allow",
       "POST"
@@ -299,18 +371,22 @@ export default async function handler(
 
     return res.status(405).json({
       success: false,
-      error: "Method not allowed."
+
+      error:
+        "Method not allowed."
     });
   }
 
 
   /* ----------------------------------------------------------
-     ADMIN AUTHENTICATION
+     ADMIN AUTH
   ---------------------------------------------------------- */
 
   if (!checkBasicAuth(req)) {
+
     return res.status(401).json({
       success: false,
+
       error:
         "Admin authentication failed."
     });
@@ -325,8 +401,10 @@ export default async function handler(
     !SUPABASE_URL ||
     !SERVICE_KEY
   ) {
+
     return res.status(500).json({
       success: false,
+
       error:
         "Supabase server configuration is missing."
     });
@@ -338,18 +416,24 @@ export default async function handler(
 
 
   /* ----------------------------------------------------------
-     READ ONLY THE ADMIN CACHE
+     READ ADMIN CACHE
   ---------------------------------------------------------- */
 
   const customTopics =
-    Array.isArray(body.customTopics)
+    Array.isArray(
+      body.customTopics
+    )
       ? body.customTopics
       : [];
 
+
   const submissions =
-    Array.isArray(body.submissions)
+    Array.isArray(
+      body.submissions
+    )
       ? body.submissions
       : [];
+
 
   const topicVideos =
     body.topicVideos &&
@@ -357,6 +441,7 @@ export default async function handler(
       "object"
       ? body.topicVideos
       : {};
+
 
   const calendarEvents =
     Array.isArray(
@@ -367,11 +452,19 @@ export default async function handler(
 
 
   try {
+
     const results: SyncResults = {
-      topics: emptyResult(),
-      contributions: emptyResult(),
-      videos: emptyResult(),
-      calendar: emptyResult()
+      topics:
+        emptyResult(),
+
+      contributions:
+        emptyResult(),
+
+      videos:
+        emptyResult(),
+
+      calendar:
+        emptyResult()
     };
 
 
@@ -384,40 +477,50 @@ export default async function handler(
         .filter(
           (topic: any) =>
             topic?.id &&
-            topic?.moduleId &&
             topic?.title
         )
-        .map((topic: any) => ({
-          id: String(topic.id),
+        .map(
+          (topic: any) => ({
+            id:
+              String(
+                topic.id
+              ),
 
-          module_id:
-            Number(topic.moduleId),
+            module_id:
+              topic.moduleId
+                ? Number(
+                    topic.moduleId
+                  )
+                : null,
 
-          title:
-            String(topic.title),
+            title:
+              String(
+                topic.title
+              ),
 
-          duration:
-            topic.duration ||
-            "15 mins",
+            duration:
+              topic.duration ||
+              "15 mins",
 
-          youtube_id:
-            topic.youtubeId ||
-            null,
+            youtube_id:
+              topic.youtubeId ||
+              null,
 
-          notes_template:
-            topic.notesTemplate ||
-            null,
+            notes_template:
+              topic.notesTemplate ||
+              null,
 
-          exercise:
-            topic.exercise ||
-            null,
+            exercise:
+              topic.exercise ||
+              null,
 
-          created_by:
-            "admin-cache-sync",
+            created_by:
+              "admin-cache-sync",
 
-          updated_by:
-            "admin-cache-sync"
-        }));
+            updated_by:
+              "admin-cache-sync"
+          })
+        );
 
 
     const topicWrite =
@@ -426,11 +529,14 @@ export default async function handler(
         topicRows
       );
 
+
     results.topics.attempted =
       topicWrite.attempted;
 
+
     results.topics.synced =
       topicWrite.synced;
+
 
     results.topics.verified =
       await verifyTopics(
@@ -451,64 +557,77 @@ export default async function handler(
             sub?.resourceTitle &&
             sub?.link
         )
-        .map((sub: any) => ({
-          id: String(sub.id),
+        .map(
+          (sub: any) => ({
+            id:
+              String(
+                sub.id
+              ),
 
-          topic_id:
-            String(sub.topicId),
+            topic_id:
+              String(
+                sub.topicId
+              ),
 
-          resource_title:
-            String(
-              sub.resourceTitle
-            ),
+            resource_title:
+              String(
+                sub.resourceTitle
+              ),
 
-          link:
-            String(sub.link),
+            link:
+              String(
+                sub.link
+              ),
 
-          type:
-            String(
-              sub.type ||
+            type:
+              String(
+                sub.type ||
                 "Article"
-            ),
+              ),
 
-          contributor_name:
-            String(
-              sub.contributorName ||
+            contributor_name:
+              String(
+                sub.contributorName ||
                 "Unknown"
-            ),
+              ),
 
-          contributor_email:
-            String(
-              sub.contributorEmail ||
+            contributor_email:
+              String(
+                sub.contributorEmail ||
                 ""
-            ),
+              ),
 
-          status:
-            [
-              "Pending",
-              "Approved",
-              "Rejected"
-            ].includes(sub.status)
-              ? sub.status
-              : "Pending",
+            status:
+              [
+                "Pending",
+                "Approved",
+                "Rejected"
+              ].includes(
+                sub.status
+              )
+                ? sub.status
+                : "Pending",
 
-          suggested_topic_title:
-            sub.suggestedTopicTitle ||
-            null,
+            suggested_topic_title:
+              sub.suggestedTopicTitle ||
+              null,
 
-          suggested_topic_duration:
-            sub.suggestedTopicDuration ||
-            null,
+            suggested_topic_duration:
+              sub.suggestedTopicDuration ||
+              null,
 
-          module_id:
-            sub.moduleId
-              ? Number(sub.moduleId)
-              : null,
+            module_id:
+              sub.moduleId
+                ? Number(
+                    sub.moduleId
+                  )
+                : null,
 
-          submitted_at:
-            sub.submittedAt ||
-            new Date().toISOString()
-        }));
+            submitted_at:
+              sub.submittedAt ||
+              new Date().toISOString()
+          })
+        );
 
 
     const contributionWrite =
@@ -517,11 +636,14 @@ export default async function handler(
         contributionRows
       );
 
+
     results.contributions.attempted =
       contributionWrite.attempted;
 
+
     results.contributions.synced =
       contributionWrite.synced;
+
 
     results.contributions.verified =
       await verifyContributions(
@@ -530,28 +652,43 @@ export default async function handler(
 
 
     /* ========================================================
-       TOPIC VIDEOS
+       VIDEOS
     ======================================================== */
 
     const videoRows: any[] = [];
+
 
     Object.entries(
       topicVideos
     ).forEach(
       ([topicId, videos]) => {
-        if (!Array.isArray(videos))
+
+        if (
+          !Array.isArray(
+            videos
+          )
+        ) {
           return;
+        }
+
 
         videos.forEach(
           (url) => {
-            if (!url) return;
+
+            if (!url)
+              return;
+
 
             videoRows.push({
               topic_id:
-                String(topicId),
+                String(
+                  topicId
+                ),
 
               url:
-                String(url),
+                String(
+                  url
+                ),
 
               added_by:
                 "admin-cache-sync"
@@ -581,11 +718,14 @@ export default async function handler(
         uniqueVideoRows
       );
 
+
     results.videos.attempted =
       videoWrite.attempted;
 
+
     results.videos.synced =
       videoWrite.synced;
+
 
     results.videos.verified =
       await verifyVideos(
@@ -595,47 +735,70 @@ export default async function handler(
 
     /* ========================================================
        CALENDAR
+       
+       IMPORTANT:
+       YOUR DATABASE TABLE IS calendar_events
+       NOT study_calendar_events.
     ======================================================== */
 
     const calendarRows =
       calendarEvents
         .filter(
           (event: any) =>
-            event?.userEmail &&
-            event?.itemType &&
-            event?.itemId &&
+            event?.userId &&
             event?.title &&
-            event?.scheduledDate
+            event?.startDate
         )
-        .map((event: any) => ({
-          user_email:
-            String(event.userEmail),
+        .map(
+          (event: any) => ({
+            user_id:
+              String(
+                event.userId
+              ),
 
-          item_type:
-            String(event.itemType),
+            type:
+              String(
+                event.type ||
+                "topic"
+              ),
 
-          item_id:
-            String(event.itemId),
+            title:
+              String(
+                event.title
+              ),
 
-          title:
-            String(event.title),
+            start_date:
+              String(
+                event.startDate
+              ),
 
-          scheduled_date:
-            String(event.scheduledDate)
-        }));
+            end_date:
+              String(
+                event.endDate ||
+                event.startDate
+              ),
+
+            color:
+              event.color ||
+              null
+          })
+        );
 
 
     const calendarWrite =
       await upsertRows(
-        "study_calendar_events",
+        "calendar_events",
         calendarRows
       );
+
 
     results.calendar.attempted =
       calendarWrite.attempted;
 
+
     results.calendar.synced =
       calendarWrite.synced;
+
 
     results.calendar.verified =
       await verifyCalendar(
@@ -644,7 +807,7 @@ export default async function handler(
 
 
     /* ========================================================
-       FINAL VERIFICATION
+       FINAL COUNTS
     ======================================================== */
 
     const totalAttempted =
@@ -653,11 +816,13 @@ export default async function handler(
       results.videos.attempted +
       results.calendar.attempted;
 
+
     const totalSynced =
       results.topics.synced +
       results.contributions.synced +
       results.videos.synced +
       results.calendar.synced;
+
 
     const totalVerified =
       results.topics.verified +
@@ -666,17 +831,22 @@ export default async function handler(
       results.calendar.verified;
 
 
-    const success =
-      totalVerified ===
-      totalAttempted;
+    /* ========================================================
+       VERY IMPORTANT:
+       
+       ZERO RECORDS MUST NEVER BE CALLED SUCCESS.
+    ======================================================== */
 
+    if (
+      totalAttempted === 0
+    ) {
 
-    if (!success) {
-      return res.status(500).json({
+      return res.status(400).json({
+
         success: false,
 
         error:
-          "Sync completed partially, but Supabase verification did not confirm every record.",
+          "No admin cache data was found. Nothing was added to Supabase.",
 
         results,
 
@@ -694,15 +864,57 @@ export default async function handler(
     }
 
 
+    /* ========================================================
+       SUCCESS ONLY WHEN EVERY RECORD IS VERIFIED
+    ======================================================== */
+
+    const success =
+      totalSynced ===
+        totalAttempted &&
+      totalVerified ===
+        totalAttempted;
+
+
+    if (!success) {
+
+      return res.status(500).json({
+
+        success: false,
+
+        error:
+          "Sync failed. Supabase did not verify every admin cache record.",
+
+        results,
+
+        totals: {
+          attempted:
+            totalAttempted,
+
+          synced:
+            totalSynced,
+
+          verified:
+            totalVerified
+        }
+      });
+    }
+
+
+    /* ========================================================
+       TRUE SUCCESS
+    ======================================================== */
+
     return res.status(200).json({
+
       success: true,
 
       message:
-        "Admin cache successfully synced and verified in Supabase.",
+        "SYNC SUCCESSFUL — Admin cache data was added to Supabase and verified.",
 
       results,
 
       totals: {
+
         attempted:
           totalAttempted,
 
@@ -716,12 +928,15 @@ export default async function handler(
 
 
   } catch (error: any) {
+
     console.error(
       "ADMIN CACHE SYNC ERROR:",
       error
     );
 
+
     return res.status(500).json({
+
       success: false,
 
       error:
