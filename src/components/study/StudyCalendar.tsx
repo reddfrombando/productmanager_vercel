@@ -1,32 +1,32 @@
 "use client";
 
 import React, {
-  DragEvent,
   useMemo,
+  useRef,
   useState,
+  type DragEvent,
+  type MouseEvent,
 } from "react";
 
 import {
   CalendarDays,
   ChevronDown,
+  ChevronLeft,
   ChevronRight,
-  Clock3,
-  FileText,
+  ChevronUp,
   GripVertical,
-  Layers3,
-  Minus,
-  Plus,
-  StickyNote,
+  Search,
   X,
+  Trash2,
+  StickyNote,
+  Plus,
+  Minus,
 } from "lucide-react";
 
 import {
   PHASES,
   MODULES,
   TOPICS,
-  type Phase,
-  type Module,
-  type Topic,
 } from "@/data/curriculum";
 
 
@@ -34,33 +34,20 @@ import {
    TYPES
 ============================================================ */
 
-type CalendarItemType =
+type ItemType =
   | "phase"
   | "module"
   | "topic";
 
-type CalendarItem = {
+type CalendarEvent = {
   id: string;
-  type: CalendarItemType;
+  sourceId: string;
+  type: ItemType;
   title: string;
-
-  phaseId?: number;
-  moduleId?: number;
-
-  duration?: string;
-
+  start: string;
+  end: string;
   color: string;
-
-  startDay: number;
-  endDay: number;
-
   note?: string;
-};
-
-
-type DragPayload = {
-  id: string;
-  type: CalendarItemType;
 };
 
 
@@ -69,92 +56,124 @@ type DragPayload = {
 ============================================================ */
 
 const COLORS = [
-  {
-    name: "Purple",
-    value: "#8B5CF6",
-    soft: "bg-purple-50",
-    border: "border-purple-200",
-  },
-  {
-    name: "Blue",
-    value: "#3B82F6",
-    soft: "bg-blue-50",
-    border: "border-blue-200",
-  },
-  {
-    name: "Cyan",
-    value: "#06B6D4",
-    soft: "bg-cyan-50",
-    border: "border-cyan-200",
-  },
-  {
-    name: "Green",
-    value: "#10B981",
-    soft: "bg-emerald-50",
-    border: "border-emerald-200",
-  },
-  {
-    name: "Orange",
-    value: "#F59E0B",
-    soft: "bg-amber-50",
-    border: "border-amber-200",
-  },
-  {
-    name: "Pink",
-    value: "#EC4899",
-    soft: "bg-pink-50",
-    border: "border-pink-200",
-  },
+  "#7C3AED",
+  "#06B6D4",
+  "#F59E0B",
+  "#F43F5E",
+  "#10B981",
+  "#3B82F6",
+  "#EC4899",
+  "#64748B",
 ];
-
-
-/* ============================================================
-   DEFAULT CALENDAR
-============================================================ */
-
-const DEFAULT_DAYS = 14;
 
 
 /* ============================================================
    HELPERS
 ============================================================ */
 
-function getTopic(
-  topicId: string
-): Topic | undefined {
-  return TOPICS.find(
-    (topic) =>
-      topic.id === topicId
+function dateKey(date: Date) {
+  const y = date.getFullYear();
+  const m = String(
+    date.getMonth() + 1
+  ).padStart(2, "0");
+  const d = String(
+    date.getDate()
+  ).padStart(2, "0");
+
+  return `${y}-${m}-${d}`;
+}
+
+
+function parseDate(value: string) {
+  const [y, m, d] =
+    value.split("-").map(Number);
+
+  return new Date(
+    y,
+    m - 1,
+    d
   );
 }
 
 
-function getModule(
-  moduleId: number
-): Module | undefined {
-  return MODULES.find(
-    (module) =>
-      module.id === moduleId
-  );
-}
-
-
-function getPhase(
-  phaseId: number
-): Phase | undefined {
-  return PHASES.find(
-    (phase) =>
-      phase.id === phaseId
-  );
-}
-
-
-function getModuleTopics(
-  module: Module
+function addDays(
+  date: Date,
+  amount: number
 ) {
-  return module.topics
-    .map(getTopic)
-    .filter(Boolean) as Topic[];
+  const result =
+    new Date(date);
+
+  result.setDate(
+    result.getDate() + amount
+  );
+
+  return result;
+}
+
+
+function startOfWeek(
+  date: Date
+) {
+  const result =
+    new Date(date);
+
+  result.setDate(
+    result.getDate() -
+      result.getDay()
+  );
+
+  return result;
+}
+
+
+function endOfWeek(
+  date: Date
+) {
+  const result =
+    new Date(date);
+
+  result.setDate(
+    result.getDate() +
+      (6 - result.getDay())
+  );
+
+  return result;
+}
+
+
+function daysBetween(
+  start: Date,
+  end: Date
+) {
+  return Math.round(
+    (
+      end.getTime() -
+      start.getTime()
+    ) /
+      86400000
+  );
+}
+
+
+function formatDate(
+  date: Date
+) {
+  return date.toLocaleDateString(
+    "en-GB"
+  );
+}
+
+
+function formatMonth(
+  date: Date
+) {
+  return date.toLocaleDateString(
+    "en-US",
+    {
+      month: "long",
+      year: "numeric",
+    }
+  );
 }
 
 
@@ -165,19 +184,29 @@ function getModuleTopics(
 export default function StudyCalendar() {
 
   const [
-    numberOfDays,
-    setNumberOfDays,
+    currentMonth,
+    setCurrentMonth,
   ] = useState(
-    DEFAULT_DAYS
+    new Date(
+      2026,
+      7,
+      1
+    )
   );
 
 
   const [
-    activePhase,
-    setActivePhase,
-  ] = useState<number | null>(
-    null
-  );
+    search,
+    setSearch,
+  ] = useState("");
+
+
+  const [
+    expandedPhases,
+    setExpandedPhases,
+  ] = useState<
+    Record<number, boolean>
+  >({});
 
 
   const [
@@ -189,27 +218,47 @@ export default function StudyCalendar() {
 
 
   const [
-    calendarItems,
-    setCalendarItems,
+    events,
+    setEvents,
   ] = useState<
-    Record<number, CalendarItem[]>
-  >({});
+    CalendarEvent[]
+  >([]);
 
 
   const [
-    draggedItem,
-    setDraggedItem,
+    selectedEvent,
+    setSelectedEvent,
   ] = useState<
-    DragPayload | null
+    CalendarEvent | null
   >(null);
 
 
   const [
-    selectedItem,
-    setSelectedItem,
-  ] = useState<
-    CalendarItem | null
-  >(null);
+    dragItem,
+    setDragItem,
+  ] = useState<{
+    sourceId: string;
+    type: ItemType;
+  } | null>(null);
+
+
+  const [
+    resizing,
+    setResizing,
+  ] = useState<{
+    id: string;
+    side: "left" | "right";
+  } | null>(null);
+
+
+  const [
+    resizePreview,
+    setResizePreview,
+  ] = useState<{
+    id: string;
+    start: string;
+    end: string;
+  } | null>(null);
 
 
   const [
@@ -219,353 +268,208 @@ export default function StudyCalendar() {
 
 
   const [
-    colorPickerOpen,
-    setColorPickerOpen,
-  ] = useState(false);
+    selectedColor,
+    setSelectedColor,
+  ] = useState(
+    COLORS[0]
+  );
 
 
-  /* ==========================================================
-     ALL MODULES GROUPED BY PHASE
-  ========================================================== */
-
-  const modulesByPhase =
-    useMemo(() => {
-
-      const map =
-        new Map<
-          number,
-          Module[]
-        >();
-
-      MODULES.forEach(
-        (module) => {
-
-          const current =
-            map.get(
-              module.phaseId
-            ) || [];
-
-          current.push(
-            module
-          );
-
-          map.set(
-            module.phaseId,
-            current
-          );
-        }
-      );
-
-      return map;
-
-    }, []);
-
-
-  /* ==========================================================
-     TOGGLE PHASE
-  ========================================================== */
-
-  const togglePhase = (
-    phaseId: number
-  ) => {
-
-    setActivePhase(
-      (current) =>
-        current === phaseId
-          ? null
-          : phaseId
-    );
-
-  };
-
-
-  /* ==========================================================
-     TOGGLE MODULE
-  ========================================================== */
-
-  const toggleModule = (
-    moduleId: number
-  ) => {
-
-    setExpandedModules(
-      (current) => ({
-        ...current,
-
-        [moduleId]:
-          !current[
-            moduleId
-          ],
-      })
-    );
-
-  };
-
-
-  /* ==========================================================
-     DRAG START
-  ========================================================== */
-
-  const handleDragStart = (
-    event: DragEvent,
-    payload: DragPayload
-  ) => {
-
-    setDraggedItem(
-      payload
-    );
-
-    event.dataTransfer.effectAllowed =
-      "copy";
-
-    event.dataTransfer.setData(
-      "application/json",
-      JSON.stringify(
-        payload
-      )
-    );
-
-  };
-
-
-  /* ==========================================================
-     DRAG END
-  ========================================================== */
-
-  const handleDragEnd = () => {
-
-    setDraggedItem(
+  const calendarRef =
+    useRef<HTMLDivElement>(
       null
     );
 
+
+  /* ==========================================================
+     CALENDAR DAYS
+  ========================================================== */
+
+  const calendarDays =
+    useMemo(() => {
+
+      const first =
+        startOfWeek(
+          new Date(
+            currentMonth.getFullYear(),
+            currentMonth.getMonth(),
+            1
+          )
+        );
+
+      const last =
+        endOfWeek(
+          new Date(
+            currentMonth.getFullYear(),
+            currentMonth.getMonth() + 1,
+            0
+          )
+        );
+
+
+      const days: Date[] = [];
+
+      let cursor =
+        new Date(first);
+
+
+      while (
+        cursor <= last
+      ) {
+        days.push(
+          new Date(cursor)
+        );
+
+        cursor =
+          addDays(
+            cursor,
+            1
+          );
+      }
+
+
+      return days;
+
+    }, [
+      currentMonth,
+    ]);
+
+
+  /* ==========================================================
+     WEEKS
+  ========================================================== */
+
+  const weeks =
+    useMemo(() => {
+
+      const result:
+        Date[][] = [];
+
+      for (
+        let i = 0;
+        i <
+        calendarDays.length;
+        i += 7
+      ) {
+        result.push(
+          calendarDays.slice(
+            i,
+            i + 7
+          )
+        );
+      }
+
+      return result;
+
+    }, [
+      calendarDays,
+    ]);
+
+
+  /* ==========================================================
+     MODULE / TOPIC HELPERS
+  ========================================================== */
+
+  const phaseModules =
+    (phaseId: number) =>
+      MODULES.filter(
+        (module: any) =>
+          Number(
+            module.phaseId
+          ) === phaseId
+      );
+
+
+  const moduleTopics =
+    (moduleId: number) =>
+      TOPICS.filter(
+        (topic: any) =>
+          Number(
+            topic.moduleId
+          ) === moduleId
+      );
+
+
+  /* ==========================================================
+     SEARCH
+  ========================================================== */
+
+  const searchMatches = (
+    value: string
+  ) => {
+
+    if (!search.trim())
+      return true;
+
+    return value
+      .toLowerCase()
+      .includes(
+        search
+          .toLowerCase()
+          .trim()
+      );
+
   };
 
 
   /* ==========================================================
-     DROP ON DAY
+     NAVIGATION
   ========================================================== */
 
-  const handleDrop = (
-    event: DragEvent,
-    day: number
-  ) => {
+  const previousMonth =
+    () => {
 
-    event.preventDefault();
-
-    let payload =
-      draggedItem;
-
-    if (!payload) {
-
-      try {
-
-        payload =
-          JSON.parse(
-            event.dataTransfer.getData(
-              "application/json"
-            )
-          );
-
-      } catch {
-        return;
-      }
-
-    }
-
-
-    if (!payload)
-      return;
-
-
-    let title = "";
-
-    let duration =
-      undefined;
-
-    let phaseId:
-      | number
-      | undefined;
-
-    let moduleId:
-      | number
-      | undefined;
-
-    if (
-      payload.type ===
-      "phase"
-    ) {
-
-      const phase =
-        getPhase(
-          Number(
-            payload.id
-          )
-        );
-
-      if (!phase)
-        return;
-
-      title =
-        phase.title;
-
-      duration =
-        phase.duration;
-
-      phaseId =
-        phase.id;
-
-    }
-
-
-    if (
-      payload.type ===
-      "module"
-    ) {
-
-      const module =
-        getModule(
-          Number(
-            payload.id
-          )
-        );
-
-      if (!module)
-        return;
-
-      title =
-        module.title;
-
-      duration =
-        module.duration;
-
-      phaseId =
-        module.phaseId;
-
-      moduleId =
-        module.id;
-
-    }
-
-
-    if (
-      payload.type ===
-      "topic"
-    ) {
-
-      const topic =
-        getTopic(
-          payload.id
-        );
-
-      if (!topic)
-        return;
-
-      title =
-        topic.title;
-
-      duration =
-        topic.duration;
-
-      moduleId =
-        topic.moduleId;
-
-      const module =
-        getModule(
-          topic.moduleId
-        );
-
-      phaseId =
-        module?.phaseId;
-
-    }
-
-
-    const newItem: CalendarItem = {
-
-      id:
-        `${payload.type}-${payload.id}-${Date.now()}`,
-
-      type:
-        payload.type,
-
-      title,
-
-      phaseId,
-
-      moduleId,
-
-      duration,
-
-      color:
-        COLORS[
-          calendarItems[day]
-            ?.length %
-            COLORS.length
-        ]?.value ||
-        COLORS[0].value,
-
-      startDay:
-        day,
-
-      endDay:
-        day,
+      setCurrentMonth(
+        new Date(
+          currentMonth.getFullYear(),
+          currentMonth.getMonth() - 1,
+          1
+        )
+      );
 
     };
 
 
-    setCalendarItems(
-      (current) => {
+  const nextMonth =
+    () => {
 
-        const copy = {
-          ...current,
-        };
+      setCurrentMonth(
+        new Date(
+          currentMonth.getFullYear(),
+          currentMonth.getMonth() + 1,
+          1
+        )
+      );
 
-        copy[day] = [
-          ...(copy[day] || []),
-          newItem,
-        ];
-
-        return copy;
-
-      }
-    );
-
-
-    setDraggedItem(
-      null
-    );
-
-  };
+    };
 
 
   /* ==========================================================
-     MOVE EXISTING CALENDAR ITEM
+     DRAG FROM SIDEBAR
   ========================================================== */
 
-  const handleCalendarItemDragStart =
+  const handleSidebarDragStart =
     (
       event: DragEvent,
-      item: CalendarItem
+      sourceId: string,
+      type: ItemType
     ) => {
 
-      event.stopPropagation();
-
-      setDraggedItem({
-        id:
-          item.id,
-        type:
-          item.type,
+      setDragItem({
+        sourceId,
+        type,
       });
 
+
       event.dataTransfer.effectAllowed =
-        "move";
+        "copy";
+
 
       event.dataTransfer.setData(
-        "application/json",
+        "text/plain",
         JSON.stringify({
-          id:
-            item.id,
-          type:
-            item.type,
+          sourceId,
+          type,
         })
       );
 
@@ -573,273 +477,728 @@ export default function StudyCalendar() {
 
 
   /* ==========================================================
-     REMOVE ITEM
+     GET DRAGGED ITEM TITLE
   ========================================================== */
 
-  const removeCalendarItem = (
-    day: number,
-    itemId: string
+  const getSourceTitle = (
+    sourceId: string,
+    type: ItemType
   ) => {
 
-    setCalendarItems(
-      (current) => {
-
-        const copy = {
-          ...current,
-        };
-
-        copy[day] =
-          (
-            copy[day] || []
-          ).filter(
-            (item) =>
-              item.id !==
-              itemId
-          );
-
-        return copy;
-
-      }
-    );
-
-
     if (
-      selectedItem?.id ===
-      itemId
+      type === "phase"
     ) {
 
-      setSelectedItem(
-        null
-      );
+      const item =
+        PHASES.find(
+          (p: any) =>
+            String(p.id) ===
+            String(sourceId)
+        );
+
+      return item?.title ||
+        "Phase";
 
     }
 
+
+    if (
+      type === "module"
+    ) {
+
+      const item =
+        MODULES.find(
+          (m: any) =>
+            String(m.id) ===
+            String(sourceId)
+        );
+
+      return item?.title ||
+        "Module";
+
+    }
+
+
+    const item =
+      TOPICS.find(
+        (t: any) =>
+          String(t.id) ===
+          String(sourceId)
+      );
+
+    return item?.title ||
+      "Topic";
   };
 
 
   /* ==========================================================
-     OPEN NOTES
+     DROP ON CALENDAR
   ========================================================== */
 
-  const openNotes = (
-    item: CalendarItem
-  ) => {
+  const handleCalendarDrop =
+    (
+      event: DragEvent,
+      day: Date
+    ) => {
 
-    setSelectedItem(
-      item
-    );
-
-    setNoteText(
-      item.note || ""
-    );
-
-  };
+      event.preventDefault();
 
 
-  /* ==========================================================
-     SAVE NOTES
-  ========================================================== */
-
-  const saveNote = () => {
-
-    if (!selectedItem)
-      return;
+      let payload =
+        dragItem;
 
 
-    setCalendarItems(
-      (current) => {
+      if (!payload) {
 
-        const copy = {
-          ...current,
-        };
+        try {
+
+          payload =
+            JSON.parse(
+              event.dataTransfer.getData(
+                "text/plain"
+              )
+            );
+
+        } catch {
+          return;
+        }
+
+      }
 
 
-        Object.keys(
-          copy
-        ).forEach(
-          (dayKey) => {
+      if (!payload)
+        return;
 
-            const day =
-              Number(
-                dayKey
-              );
 
-            copy[day] =
-              (
-                copy[day] ||
-                []
-              ).map(
-                (item) =>
-                  item.id ===
-                  selectedItem.id
-                    ? {
-                        ...item,
-                        note:
-                          noteText,
-                      }
-                    : item
-              );
+      const start =
+        dateKey(day);
 
-          }
+
+      const end =
+        dateKey(
+          addDays(
+            day,
+            payload.type ===
+              "phase"
+              ? 13
+              : payload.type ===
+                "module"
+              ? 2
+              : 0
+          )
         );
 
 
-        return copy;
+      const color =
+        payload.type ===
+        "phase"
+          ? COLORS[0]
+          : payload.type ===
+            "module"
+          ? COLORS[1]
+          : COLORS[2];
 
-      }
-    );
+
+      const newEvent:
+        CalendarEvent = {
+
+        id:
+          `${payload.type}-${payload.sourceId}-${Date.now()}`,
+
+        sourceId:
+          String(
+            payload.sourceId
+          ),
+
+        type:
+          payload.type,
+
+        title:
+          getSourceTitle(
+            payload.sourceId,
+            payload.type
+          ),
+
+        start,
+
+        end,
+
+        color,
+
+      };
 
 
-    setSelectedItem(
-      null
-    );
+      setEvents(
+        current => [
+          ...current,
+          newEvent,
+        ]
+      );
 
-  };
+
+      setDragItem(
+        null
+      );
+
+    };
 
 
   /* ==========================================================
-     CHANGE COLOR
+     DRAG EXISTING BAR
   ========================================================== */
 
-  const changeItemColor = (
-    color: string
-  ) => {
+  const handleEventDragStart =
+    (
+      event: DragEvent,
+      item: CalendarEvent
+    ) => {
 
-    if (!selectedItem)
-      return;
-
-
-    setCalendarItems(
-      (current) => {
-
-        const copy = {
-          ...current,
-        };
+      event.stopPropagation();
 
 
-        Object.keys(
-          copy
-        ).forEach(
-          (dayKey) => {
+      event.dataTransfer.effectAllowed =
+        "move";
 
-            const day =
-              Number(
-                dayKey
-              );
 
-            copy[day] =
-              (
-                copy[day] ||
-                []
-              ).map(
-                (item) =>
-                  item.id ===
-                  selectedItem.id
-                    ? {
-                        ...item,
-                        color,
-                      }
-                    : item
-              );
+      event.dataTransfer.setData(
+        "text/calendar-event",
+        item.id
+      );
 
-          }
+    };
+
+
+  /* ==========================================================
+     MOVE EXISTING BAR
+  ========================================================== */
+
+  const handleEventDrop =
+    (
+      event: DragEvent,
+      destination: Date
+    ) => {
+
+      const eventId =
+        event.dataTransfer.getData(
+          "text/calendar-event"
         );
 
 
-        return copy;
-
-      }
-    );
+      if (!eventId)
+        return;
 
 
-    setSelectedItem(
-      (current) =>
-        current
-          ? {
-              ...current,
-              color,
-            }
-          : null
-    );
+      const item =
+        events.find(
+          e =>
+            e.id ===
+            eventId
+        );
 
 
-    setColorPickerOpen(
-      false
-    );
-
-  };
+      if (!item)
+        return;
 
 
-  /* ==========================================================
-     EXTEND ITEM
-  ========================================================== */
-
-  const extendItem = (
-    item: CalendarItem,
-    additionalDays: number
-  ) => {
-
-    setCalendarItems(
-      (current) => {
-
-        const copy = {
-          ...current,
-        };
+      const oldStart =
+        parseDate(
+          item.start
+        );
 
 
-        Object.keys(
-          copy
-        ).forEach(
-          (dayKey) => {
-
-            const day =
-              Number(
-                dayKey
-              );
+      const oldEnd =
+        parseDate(
+          item.end
+        );
 
 
-            copy[day] =
-              (
-                copy[day] ||
-                []
-              ).map(
-                (existing) => {
-
-                  if (
-                    existing.id !==
-                    item.id
-                  ) {
-                    return existing;
-                  }
+      const duration =
+        daysBetween(
+          oldStart,
+          oldEnd
+        );
 
 
-                  return {
-                    ...existing,
+      const newStart =
+        new Date(
+          destination
+        );
 
-                    endDay:
-                      Math.min(
-                        numberOfDays,
-                        Math.max(
-                          existing.endDay,
-                          existing.endDay +
-                            additionalDays
-                        )
+
+      const newEnd =
+        addDays(
+          newStart,
+          duration
+        );
+
+
+      setEvents(
+        current =>
+          current.map(
+            e =>
+              e.id ===
+              eventId
+                ? {
+                    ...e,
+                    start:
+                      dateKey(
+                        newStart
                       ),
-                  };
+                    end:
+                      dateKey(
+                        newEnd
+                      ),
+                  }
+                : e
+          )
+      );
 
-                }
-              );
+    };
 
-          }
+
+  /* ==========================================================
+     RESIZE START
+  ========================================================== */
+
+  const beginResize =
+    (
+      event: MouseEvent,
+      item: CalendarEvent,
+      side:
+        | "left"
+        | "right"
+    ) => {
+
+      event.preventDefault();
+      event.stopPropagation();
+
+
+      setResizing({
+        id:
+          item.id,
+        side,
+      });
+
+
+      setResizePreview({
+        id:
+          item.id,
+        start:
+          item.start,
+        end:
+          item.end,
+      });
+
+    };
+
+
+  /* ==========================================================
+     RESIZE CALCULATION
+  ========================================================== */
+
+  const handleResizeMove =
+    (
+      day: Date
+    ) => {
+
+      if (!resizing)
+        return;
+
+
+      const item =
+        events.find(
+          e =>
+            e.id ===
+            resizing.id
         );
 
 
-        return copy;
+      if (!item)
+        return;
+
+
+      const newDate =
+        dateKey(day);
+
+
+      let start =
+        item.start;
+
+      let end =
+        item.end;
+
+
+      if (
+        resizing.side ===
+        "left"
+      ) {
+
+        if (
+          newDate <= end
+        ) {
+          start =
+            newDate;
+        }
+
+      } else {
+
+        if (
+          newDate >= start
+        ) {
+          end =
+            newDate;
+        }
 
       }
-    );
 
-  };
+
+      setResizePreview({
+        id:
+          item.id,
+        start,
+        end,
+      });
+
+    };
+
+
+  /* ==========================================================
+     FINISH RESIZE
+  ========================================================== */
+
+  const finishResize =
+    () => {
+
+      if (
+        !resizing ||
+        !resizePreview
+      ) {
+        return;
+      }
+
+
+      setEvents(
+        current =>
+          current.map(
+            item =>
+              item.id ===
+              resizing.id
+                ? {
+                    ...item,
+                    start:
+                      resizePreview.start,
+                    end:
+                      resizePreview.end,
+                  }
+                : item
+          )
+      );
+
+
+      setResizing(
+        null
+      );
+
+
+      setResizePreview(
+        null
+      );
+
+    };
+
+
+  /* ==========================================================
+     GLOBAL MOUSE EVENTS
+  ========================================================== */
+
+  React.useEffect(
+    () => {
+
+      if (!resizing)
+        return;
+
+
+      const handleMouseMove =
+        (
+          event: globalThis.MouseEvent
+        ) => {
+
+          const target =
+            document.elementFromPoint(
+              event.clientX,
+              event.clientY
+            );
+
+
+          const cell =
+            target?.closest(
+              "[data-calendar-day]"
+            ) as
+              | HTMLElement
+              | null;
+
+
+          if (!cell)
+            return;
+
+
+          const value =
+            cell.dataset.calendarDay;
+
+
+          if (!value)
+            return;
+
+
+          handleResizeMove(
+            parseDate(value)
+          );
+
+        };
+
+
+      const handleMouseUp =
+        () => {
+          finishResize();
+        };
+
+
+      window.addEventListener(
+        "mousemove",
+        handleMouseMove
+      );
+
+      window.addEventListener(
+        "mouseup",
+        handleMouseUp
+      );
+
+
+      return () => {
+
+        window.removeEventListener(
+          "mousemove",
+          handleMouseMove
+        );
+
+        window.removeEventListener(
+          "mouseup",
+          handleMouseUp
+        );
+
+      };
+
+    },
+    [
+      resizing,
+      resizePreview,
+      events,
+    ]
+  );
+
+
+  /* ==========================================================
+     EVENT POSITION IN WEEK
+  ========================================================== */
+
+  const getEventsForWeek =
+    (
+      week: Date[]
+    ) => {
+
+      const weekStart =
+        week[0];
+
+      const weekEnd =
+        week[6];
+
+
+      return events
+        .map(
+          item => {
+
+            let start =
+              parseDate(
+                item.start
+              );
+
+            let end =
+              parseDate(
+                item.end
+              );
+
+
+            if (
+              resizePreview?.id ===
+              item.id
+            ) {
+
+              start =
+                parseDate(
+                  resizePreview.start
+                );
+
+              end =
+                parseDate(
+                  resizePreview.end
+                );
+
+            }
+
+
+            if (
+              end <
+                weekStart ||
+              start >
+                weekEnd
+            ) {
+              return null;
+            }
+
+
+            const visibleStart =
+              start <
+              weekStart
+                ? weekStart
+                : start;
+
+
+            const visibleEnd =
+              end >
+              weekEnd
+                ? weekEnd
+                : end;
+
+
+            const startIndex =
+              daysBetween(
+                weekStart,
+                visibleStart
+              );
+
+
+            const endIndex =
+              daysBetween(
+                weekStart,
+                visibleEnd
+              );
+
+
+            return {
+              item,
+              startIndex,
+              endIndex,
+              start,
+              end,
+            };
+
+          }
+        )
+        .filter(Boolean) as {
+          item: CalendarEvent;
+          startIndex: number;
+          endIndex: number;
+          start: Date;
+          end: Date;
+        }[];
+
+    };
+
+
+  /* ==========================================================
+     OPEN EDITOR
+  ========================================================== */
+
+  const openEditor =
+    (
+      item: CalendarEvent
+    ) => {
+
+      setSelectedEvent(
+        item
+      );
+
+      setNoteText(
+        item.note || ""
+      );
+
+      setSelectedColor(
+        item.color
+      );
+
+    };
+
+
+  /* ==========================================================
+     SAVE EDITOR
+  ========================================================== */
+
+  const saveEditor =
+    () => {
+
+      if (!selectedEvent)
+        return;
+
+
+      setEvents(
+        current =>
+          current.map(
+            item =>
+              item.id ===
+              selectedEvent.id
+                ? {
+                    ...item,
+
+                    start:
+                      selectedEvent.start,
+
+                    end:
+                      selectedEvent.end,
+
+                    color:
+                      selectedColor,
+
+                    note:
+                      noteText,
+                  }
+                : item
+          )
+      );
+
+
+      setSelectedEvent(
+        null
+      );
+
+    };
+
+
+  /* ==========================================================
+     REMOVE
+  ========================================================== */
+
+  const removeEvent =
+    () => {
+
+      if (!selectedEvent)
+        return;
+
+
+      setEvents(
+        current =>
+          current.filter(
+            item =>
+              item.id !==
+              selectedEvent.id
+          )
+      );
+
+
+      setSelectedEvent(
+        null
+      );
+
+    };
 
 
   /* ==========================================================
@@ -847,613 +1206,716 @@ export default function StudyCalendar() {
   ========================================================== */
 
   return (
-    <div className="bg-white border border-border-light rounded-2xl shadow-premium overflow-hidden">
+    <div className="w-full">
 
       {/* ======================================================
           HEADER
       ====================================================== */}
 
-      <div className="p-5 border-b border-border-light flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-
-        <div>
-
-          <div className="flex items-center gap-2">
-
-            <CalendarDays className="h-5 w-5 text-accent-purple" />
-
-            <h2 className="font-display text-lg font-black text-primary">
-              Study Planner
-            </h2>
-
-          </div>
-
-
-          <p className="text-[10px] text-primary/45 mt-1">
-            Drag phases, modules and topics onto
-            any day to build your learning plan.
-          </p>
-
-        </div>
-
-
-        {/* NUMBER OF DAYS */}
+      <div className="mb-5">
 
         <div className="flex items-center gap-2">
 
-          <span className="text-[9px] uppercase font-bold tracking-wider text-primary/40">
-            Calendar
-          </span>
+          <CalendarDays
+            className="h-6 w-6 text-accent-purple"
+          />
 
-
-          <button
-            type="button"
-            onClick={() =>
-              setNumberOfDays(
-                (days) =>
-                  Math.max(
-                    7,
-                    days - 7
-                  )
-              )
-            }
-            className="h-8 w-8 rounded-lg border border-border-light flex items-center justify-center hover:bg-bg-light"
-          >
-            <Minus className="h-3.5 w-3.5" />
-          </button>
-
-
-          <div className="min-w-[75px] text-center">
-
-            <div className="font-black text-sm text-primary">
-              {numberOfDays}
-            </div>
-
-            <div className="text-[8px] uppercase font-bold text-primary/35">
-              Days
-            </div>
-
-          </div>
-
-
-          <button
-            type="button"
-            onClick={() =>
-              setNumberOfDays(
-                (days) =>
-                  Math.min(
-                    90,
-                    days + 7
-                  )
-              )
-            }
-            className="h-8 w-8 rounded-lg border border-border-light flex items-center justify-center hover:bg-bg-light"
-          >
-            <Plus className="h-3.5 w-3.5" />
-          </button>
+          <h1 className="text-2xl font-black text-primary">
+            Study Calendar
+          </h1>
 
         </div>
+
+
+        <p className="text-xs text-primary/45 mt-1 max-w-2xl">
+          Drag Phases, Modules, and Topics from
+          the panel onto a day to schedule them.
+          Drag a bar to move it, drag its edges
+          to extend or shorten it. Click a day
+          bar to edit its color or note.
+        </p>
 
       </div>
 
 
       {/* ======================================================
-          MAIN AREA
+          MAIN CALENDAR CARD
       ====================================================== */}
 
-      <div className="flex min-h-[650px]">
+      <div className="bg-white border border-border-light rounded-2xl overflow-hidden shadow-premium">
+
+        <div className="flex">
 
 
-        {/* ====================================================
-            LEFT SIDEBAR
-        ==================================================== */}
+          {/* ==================================================
+              SIDEBAR
+          ================================================== */}
 
-        <aside className="w-[300px] shrink-0 border-r border-border-light bg-[#FBFCFE] overflow-y-auto">
+          <aside className="w-[290px] shrink-0 border-r border-border-light bg-white">
 
-          <div className="p-4 border-b border-border-light">
+            {/* SEARCH */}
 
-            <div className="text-[9px] uppercase font-black tracking-wider text-primary/35">
-              Curriculum Library
+            <div className="p-4">
+
+              <div className="relative">
+
+                <Search
+                  className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-primary/30"
+                />
+
+                <input
+                  value={search}
+                  onChange={e =>
+                    setSearch(
+                      e.target.value
+                    )
+                  }
+                  placeholder="Search phases, modules, topics..."
+                  className="w-full h-8 rounded-lg border border-border-light pl-9 pr-3 text-[10px] outline-none focus:ring-2 focus:ring-accent-purple/20"
+                />
+
+              </div>
+
             </div>
 
-            <p className="text-[10px] text-primary/45 mt-1">
-              Drag anything into the calendar.
-            </p>
 
-          </div>
+            <div className="px-4 pb-2">
 
+              <div className="text-[8px] font-black uppercase tracking-widest text-primary/35">
+                Drag an item onto the calendar
+              </div>
 
-          <div className="p-3 space-y-2">
-
-            {PHASES.map(
-              (phase) => {
-
-                const phaseModules =
-                  modulesByPhase.get(
-                    phase.id
-                  ) || [];
+            </div>
 
 
-                const phaseOpen =
-                  activePhase ===
-                  phase.id;
+            {/* CURRICULUM */}
 
+            <div className="px-3 pb-4 max-h-[700px] overflow-y-auto">
 
-                return (
-                  <div
-                    key={
+              {PHASES.map(
+                (phase: any) => {
+
+                  if (
+                    !searchMatches(
+                      phase.title
+                    ) &&
+                    !phaseModules(
                       phase.id
-                    }
-                    className="rounded-xl border border-border-light bg-white overflow-hidden"
-                  >
+                    ).some(
+                      (m: any) =>
+                        searchMatches(
+                          m.title
+                        ) ||
+                        moduleTopics(
+                          m.id
+                        ).some(
+                          (t: any) =>
+                            searchMatches(
+                              t.title
+                            )
+                        )
+                    )
+                  ) {
+                    return null;
+                  }
 
-                    {/* PHASE */}
 
+                  const open =
+                    expandedPhases[
+                      phase.id
+                    ];
+
+
+                  return (
                     <div
-                      className="flex items-center gap-2 p-2.5"
+                      key={
+                        phase.id
+                      }
+                      className="mb-1"
                     >
 
-                      <button
-                        type="button"
-                        onClick={() =>
-                          togglePhase(
-                            phase.id
-                          )
-                        }
-                        className="h-6 w-6 rounded-md hover:bg-bg-light flex items-center justify-center shrink-0"
-                      >
-
-                        {phaseOpen ? (
-                          <ChevronDown className="h-3.5 w-3.5" />
-                        ) : (
-                          <ChevronRight className="h-3.5 w-3.5" />
-                        )}
-
-                      </button>
-
+                      {/* PHASE */}
 
                       <div
                         draggable
-                        onDragStart={(event) =>
-                          handleDragStart(
-                            event,
-                            {
-                              id:
-                                String(
-                                  phase.id
-                                ),
-                              type:
-                                "phase",
-                            }
+                        onDragStart={e =>
+                          handleSidebarDragStart(
+                            e,
+                            String(
+                              phase.id
+                            ),
+                            "phase"
                           )
                         }
-                        onDragEnd={
-                          handleDragEnd
-                        }
-                        className="flex-1 flex items-center gap-2 cursor-grab active:cursor-grabbing"
+                        className="group flex items-center gap-1 rounded-lg px-2 py-2 bg-purple-50 border border-purple-100 cursor-grab active:cursor-grabbing"
                       >
 
-                        <div
-                          className="h-7 w-7 rounded-lg flex items-center justify-center text-white shrink-0"
-                          style={{
-                            backgroundColor:
-                              COLORS[
-                                (
-                                  phase.id -
-                                  1
-                                ) %
-                                  COLORS.length
-                              ].value,
-                          }}
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setExpandedPhases(
+                              current => ({
+                                ...current,
+                                [phase.id]:
+                                  !current[
+                                    phase.id
+                                  ],
+                              })
+                            )
+                          }
+                          className="h-5 w-5 flex items-center justify-center"
                         >
 
-                          <Layers3 className="h-3.5 w-3.5" />
+                          {open ? (
+                            <ChevronDown className="h-3 w-3 text-primary/50" />
+                          ) : (
+                            <ChevronRight className="h-3 w-3 text-primary/50" />
+                          )}
 
+                        </button>
+
+
+                        <GripVertical className="h-3 w-3 text-primary/20" />
+
+
+                        <div className="h-4 w-4 rounded-full bg-purple-600 flex items-center justify-center text-white text-[7px] font-black">
+                          {phase.id}
                         </div>
 
 
-                        <div className="min-w-0">
-
-                          <div className="text-[10px] font-black text-primary truncate">
-                            Phase {phase.id}
-                          </div>
-
-                          <div className="text-[9px] font-semibold text-primary/50 truncate">
-                            {phase.title}
-                          </div>
-
-                        </div>
+                        <span className="text-[10px] font-black text-primary truncate flex-1">
+                          {phase.title}
+                        </span>
 
                       </div>
 
-                    </div>
 
+                      {/* MODULES */}
 
-                    {/* MODULES */}
+                      {open && (
 
-                    {phaseOpen && (
+                        <div className="ml-5 mt-1">
 
-                      <div className="px-2 pb-2 space-y-1">
+                          {phaseModules(
+                            phase.id
+                          ).map(
+                            (module: any) => {
 
-                        {phaseModules.map(
-                          (module) => {
-
-                            const moduleOpen =
-                              !!expandedModules[
-                                module.id
-                              ];
-
-
-                            return (
-                              <div
-                                key={
+                              if (
+                                search &&
+                                !searchMatches(
+                                  module.title
+                                ) &&
+                                !moduleTopics(
                                   module.id
-                                }
-                                className="ml-4"
-                              >
+                                ).some(
+                                  (t: any) =>
+                                    searchMatches(
+                                      t.title
+                                    )
+                                )
+                              ) {
+                                return null;
+                              }
 
-                                {/* MODULE */}
 
+                              const moduleOpen =
+                                expandedModules[
+                                  module.id
+                                ];
+
+
+                              return (
                                 <div
-                                  className="flex items-center gap-1 rounded-lg hover:bg-bg-light"
+                                  key={
+                                    module.id
+                                  }
                                 >
-
-                                  <button
-                                    type="button"
-                                    onClick={() =>
-                                      toggleModule(
-                                        module.id
-                                      )
-                                    }
-                                    className="h-6 w-6 flex items-center justify-center"
-                                  >
-
-                                    {moduleOpen ? (
-                                      <ChevronDown className="h-3 w-3" />
-                                    ) : (
-                                      <ChevronRight className="h-3 w-3" />
-                                    )}
-
-                                  </button>
-
 
                                   <div
                                     draggable
-                                    onDragStart={(event) =>
-                                      handleDragStart(
-                                        event,
-                                        {
-                                          id:
-                                            String(
-                                              module.id
-                                            ),
-                                          type:
-                                            "module",
-                                        }
+                                    onDragStart={e =>
+                                      handleSidebarDragStart(
+                                        e,
+                                        String(
+                                          module.id
+                                        ),
+                                        "module"
                                       )
                                     }
-                                    onDragEnd={
-                                      handleDragEnd
-                                    }
-                                    className="flex-1 flex items-center gap-2 py-1.5 cursor-grab active:cursor-grabbing"
+                                    className="flex items-center gap-1 rounded-lg px-2 py-1.5 hover:bg-cyan-50 cursor-grab active:cursor-grabbing"
                                   >
 
-                                    <GripVertical className="h-3 w-3 text-primary/20 shrink-0" />
-
-
-                                    <div className="min-w-0">
-
-                                      <div className="text-[9px] font-bold text-primary truncate">
-                                        Module {module.id}
-                                      </div>
-
-                                      <div className="text-[8px] text-primary/45 truncate">
-                                        {module.title}
-                                      </div>
-
-                                    </div>
-
-                                  </div>
-
-                                </div>
-
-
-                                {/* TOPICS */}
-
-                                {moduleOpen && (
-
-                                  <div className="ml-6 mt-1 border-l border-border-light pl-2 space-y-0.5">
-
-                                    {getModuleTopics(
-                                      module
-                                    ).map(
-                                      (topic) => (
-
-                                        <div
-                                          key={
-                                            topic.id
-                                          }
-                                          draggable
-                                          onDragStart={(event) =>
-                                            handleDragStart(
-                                              event,
-                                              {
-                                                id:
-                                                  topic.id,
-                                                type:
-                                                  "topic",
-                                              }
-                                            )
-                                          }
-                                          onDragEnd={
-                                            handleDragEnd
-                                          }
-                                          className="group flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-white hover:shadow-sm cursor-grab active:cursor-grabbing"
-                                        >
-
-                                          <GripVertical className="h-3 w-3 text-primary/15 group-hover:text-primary/35" />
-
-
-                                          <div className="min-w-0 flex-1">
-
-                                            <div className="text-[8px] font-semibold text-primary truncate">
-                                              {topic.title}
-                                            </div>
-
-                                            <div className="flex items-center gap-1 text-[7px] text-primary/35">
-
-                                              <Clock3 className="h-2.5 w-2.5" />
-
-                                              {topic.duration}
-
-                                            </div>
-
-                                          </div>
-
-                                        </div>
-
-                                      )
-                                    )}
-
-                                  </div>
-
-                                )}
-
-                              </div>
-                            );
-
-                          }
-                        )}
-
-                      </div>
-
-                    )}
-
-                  </div>
-                );
-
-              }
-            )}
-
-          </div>
-
-        </aside>
-
-
-        {/* ====================================================
-            CALENDAR
-        ==================================================== */}
-
-        <main className="flex-1 overflow-x-auto">
-
-          <div
-            className="grid min-w-[1100px]"
-            style={{
-              gridTemplateColumns:
-                `repeat(${numberOfDays}, minmax(150px, 1fr))`,
-            }}
-          >
-
-            {Array.from(
-              {
-                length:
-                  numberOfDays,
-              },
-              (_, index) => {
-
-                const day =
-                  index + 1;
-
-                const items =
-                  calendarItems[
-                    day
-                  ] || [];
-
-
-                return (
-                  <div
-                    key={day}
-                    onDragOver={(event) =>
-                      event.preventDefault()
-                    }
-                    onDrop={(event) =>
-                      handleDrop(
-                        event,
-                        day
-                      )
-                    }
-                    className={`min-h-[620px] border-r border-border-light ${
-                      draggedItem
-                        ? "bg-accent-purple/[0.025]"
-                        : ""
-                    }`}
-                  >
-
-                    {/* DAY HEADER */}
-
-                    <div className="sticky top-0 z-10 bg-white border-b border-border-light p-3">
-
-                      <div className="text-[8px] uppercase font-black text-primary/35">
-                        Day {day}
-                      </div>
-
-                      <div className="text-sm font-black text-primary mt-0.5">
-                        {day}
-                      </div>
-
-                    </div>
-
-
-                    {/* DROP AREA */}
-
-                    <div className="p-2 space-y-2 min-h-[540px]">
-
-                      {items.length ===
-                        0 && (
-
-                        <div className="h-24 border border-dashed border-border-light rounded-xl flex flex-col items-center justify-center text-center">
-
-                          <CalendarDays className="h-4 w-4 text-primary/15" />
-
-                          <span className="text-[8px] font-semibold text-primary/25 mt-2">
-                            Drop topic here
-                          </span>
-
-                        </div>
-
-                      )}
-
-
-                      {items.map(
-                        (item) => {
-
-                          const isSelected =
-                            selectedItem?.id ===
-                            item.id;
-
-
-                          return (
-                            <div
-                              key={
-                                item.id
-                              }
-                              draggable
-                              onDragStart={(event) =>
-                                handleCalendarItemDragStart(
-                                  event,
-                                  item
-                                )
-                              }
-                              onDragEnd={
-                                handleDragEnd
-                              }
-                              onClick={() =>
-                                setSelectedItem(
-                                  item
-                                )
-                              }
-                              className={`group relative rounded-xl border bg-white p-3 cursor-grab active:cursor-grabbing shadow-sm hover:shadow-md transition-all ${
-                                isSelected
-                                  ? "ring-2 ring-accent-purple/20"
-                                  : ""
-                              }`}
-                              style={{
-                                borderLeft:
-                                  `4px solid ${item.color}`,
-                              }}
-                            >
-
-                              <div className="flex items-start gap-2">
-
-                                <GripVertical className="h-3 w-3 text-primary/20 mt-0.5 shrink-0" />
-
-
-                                <div className="min-w-0 flex-1">
-
-                                  <div className="flex items-center gap-1 mb-1">
-
-                                    <span
-                                      className="text-[7px] uppercase font-black px-1.5 py-0.5 rounded"
-                                      style={{
-                                        backgroundColor:
-                                          `${item.color}18`,
-                                        color:
-                                          item.color,
-                                      }}
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        setExpandedModules(
+                                          current => ({
+                                            ...current,
+                                            [module.id]:
+                                              !current[
+                                                module.id
+                                              ],
+                                          })
+                                        )
+                                      }
+                                      className="h-5 w-5 flex items-center justify-center"
                                     >
-                                      {item.type}
+
+                                      {moduleOpen ? (
+                                        <ChevronDown className="h-3 w-3 text-primary/35" />
+                                      ) : (
+                                        <ChevronRight className="h-3 w-3 text-primary/35" />
+                                      )}
+
+                                    </button>
+
+
+                                    <GripVertical className="h-3 w-3 text-primary/15" />
+
+
+                                    <span className="h-2 w-2 rounded-full bg-cyan-500 shrink-0" />
+
+
+                                    <span className="text-[9px] font-bold text-primary truncate">
+                                      {module.title}
                                     </span>
 
                                   </div>
 
 
-                                  <div className="text-[9px] font-black text-primary leading-snug">
-                                    {item.title}
-                                  </div>
+                                  {/* TOPICS */}
+
+                                  {moduleOpen && (
+
+                                    <div className="ml-8 border-l border-border-light pl-2">
+
+                                      {moduleTopics(
+                                        module.id
+                                      ).map(
+                                        (topic: any) => {
+
+                                          if (
+                                            search &&
+                                            !searchMatches(
+                                              topic.title
+                                            )
+                                          ) {
+                                            return null;
+                                          }
 
 
-                                  {item.duration && (
+                                          return (
+                                            <div
+                                              key={
+                                                topic.id
+                                              }
+                                              draggable
+                                              onDragStart={e =>
+                                                handleSidebarDragStart(
+                                                  e,
+                                                  String(
+                                                    topic.id
+                                                  ),
+                                                  "topic"
+                                                )
+                                              }
+                                              className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-amber-50 cursor-grab active:cursor-grabbing"
+                                            >
 
-                                    <div className="flex items-center gap-1 mt-1 text-[7px] text-primary/40">
-
-                                      <Clock3 className="h-2.5 w-2.5" />
-
-                                      {item.duration}
-
-                                    </div>
-
-                                  )}
+                                              <GripVertical className="h-2.5 w-2.5 text-primary/15" />
 
 
-                                  {item.note && (
+                                              <span className="h-2 w-2 rounded-full bg-amber-500 shrink-0" />
 
-                                    <div className="flex items-center gap-1 mt-2 text-[7px] text-accent-purple font-semibold">
 
-                                      <StickyNote className="h-2.5 w-2.5" />
+                                              <span className="text-[8px] text-primary/70 truncate">
+                                                {topic.title}
+                                              </span>
 
-                                      Note added
+                                            </div>
+                                          );
+
+                                        }
+                                      )}
 
                                     </div>
 
                                   )}
 
                                 </div>
+                              );
+
+                            }
+                          )}
+
+                        </div>
+
+                      )}
+
+                    </div>
+                  );
+
+                }
+              )}
+
+            </div>
 
 
-                                <button
-                                  type="button"
-                                  onClick={(event) => {
-                                    event.stopPropagation();
+            {/* LEGEND */}
 
-                                    removeCalendarItem(
-                                      day,
-                                      item.id
-                                    );
-                                  }}
-                                  className="opacity-0 group-hover:opacity-100 h-5 w-5 rounded-md hover:bg-red-50 hover:text-red-500 flex items-center justify-center"
-                                >
+            <div className="border-t border-border-light p-3 text-[8px] text-primary/45">
 
-                                  <X className="h-3 w-3" />
+              <div className="flex gap-4">
 
-                                </button>
+                <span className="flex items-center gap-1">
+                  <i className="w-2 h-2 rounded-full bg-purple-600" />
+                  Phase
+                </span>
 
+                <span className="flex items-center gap-1">
+                  <i className="w-2 h-2 rounded-full bg-cyan-500" />
+                  Module
+                </span>
+
+                <span className="flex items-center gap-1">
+                  <i className="w-2 h-2 rounded-full bg-amber-500" />
+                  Topic
+                </span>
+
+              </div>
+
+            </div>
+
+          </aside>
+
+
+          {/* ==================================================
+              CALENDAR
+          ================================================== */}
+
+          <main
+            ref={calendarRef}
+            className="flex-1 min-w-0"
+          >
+
+            {/* MONTH HEADER */}
+
+            <div className="h-16 border-b border-border-light flex items-center justify-between px-5">
+
+              <button
+                type="button"
+                onClick={
+                  previousMonth
+                }
+                className="h-8 w-8 rounded-lg border border-border-light flex items-center justify-center hover:bg-bg-light"
+              >
+
+                <ChevronLeft className="h-4 w-4" />
+
+              </button>
+
+
+              <div className="text-sm font-black text-primary">
+                {formatMonth(
+                  currentMonth
+                )}
+              </div>
+
+
+              <button
+                type="button"
+                onClick={
+                  nextMonth
+                }
+                className="h-8 w-8 rounded-lg border border-border-light flex items-center justify-center hover:bg-bg-light"
+              >
+
+                <ChevronRight className="h-4 w-4" />
+
+              </button>
+
+            </div>
+
+
+            {/* WEEKDAY HEADER */}
+
+            <div className="grid grid-cols-7 border-b border-border-light">
+
+              {[
+                "SUN",
+                "MON",
+                "TUE",
+                "WED",
+                "THU",
+                "FRI",
+                "SAT",
+              ].map(
+                day => (
+
+                  <div
+                    key={
+                      day
+                    }
+                    className="h-9 flex items-center justify-center text-[8px] font-black tracking-widest text-primary/35"
+                  >
+                    {day}
+                  </div>
+
+                )
+              )}
+
+            </div>
+
+
+            {/* ==================================================
+                WEEKS
+            ================================================== */}
+
+            {weeks.map(
+              (
+                week,
+                weekIndex
+              ) => {
+
+                const weekEvents =
+                  getEventsForWeek(
+                    week
+                  );
+
+
+                return (
+                  <div
+                    key={
+                      weekIndex
+                    }
+                    className="relative"
+                  >
+
+                    {/* DATE CELLS */}
+
+                    <div className="grid grid-cols-7">
+
+                      {week.map(
+                        day => {
+
+                          const key =
+                            dateKey(
+                              day
+                            );
+
+
+                          const inMonth =
+                            day.getMonth() ===
+                            currentMonth.getMonth();
+
+
+                          const today =
+                            key ===
+                            dateKey(
+                              new Date()
+                            );
+
+
+                          return (
+                            <div
+                              key={
+                                key
+                              }
+                              data-calendar-day={
+                                key
+                              }
+                              onDragOver={e =>
+                                e.preventDefault()
+                              }
+                              onDrop={e => {
+
+                                if (
+                                  e.dataTransfer.types.includes(
+                                    "text/calendar-event"
+                                  )
+                                ) {
+
+                                  handleEventDrop(
+                                    e,
+                                    day
+                                  );
+
+                                } else {
+
+                                  handleCalendarDrop(
+                                    e,
+                                    day
+                                  );
+
+                                }
+
+                              }}
+                              className={`h-[108px] border-r border-b border-border-light p-2 transition-colors ${
+                                !inMonth
+                                  ? "bg-slate-50/60"
+                                  : "bg-white"
+                              } ${
+                                dragItem
+                                  ? "hover:bg-purple-50/50"
+                                  : ""
+                              }`}
+                            >
+
+                              <div
+                                className={`text-[10px] font-bold ${
+                                  today
+                                    ? "bg-purple-600 text-white rounded-full w-5 h-5 flex items-center justify-center"
+                                    : inMonth
+                                    ? "text-primary/60"
+                                    : "text-primary/25"
+                                }`}
+                              >
+                                {day.getDate()}
                               </div>
 
+                            </div>
+                          );
 
-                              {/* EXTENSION */}
+                        }
+                      )}
 
-                              {item.endDay >
-                                item.startDay && (
+                    </div>
 
-                                <div className="mt-2 text-[7px] font-bold text-primary/35">
 
-                                  Extended to Day{" "}
-                                  {
-                                    item.endDay
+                    {/* EVENT BARS */}
+
+                    <div className="absolute left-0 right-0 top-0 pointer-events-none">
+
+                      {weekEvents.map(
+                        (
+                          data,
+                          eventIndex
+                        ) => {
+
+                          const {
+                            item,
+                            startIndex,
+                            endIndex,
+                            start,
+                            end,
+                          } =
+                            data;
+
+
+                          const visibleStart =
+                            Math.max(
+                              0,
+                              startIndex
+                            );
+
+
+                          const visibleEnd =
+                            Math.min(
+                              6,
+                              endIndex
+                            );
+
+
+                          const columns =
+                            visibleEnd -
+                            visibleStart +
+                            1;
+
+
+                          const left =
+                            `calc(${visibleStart} * (100% / 7) + 4px)`;
+
+
+                          const width =
+                            `calc(${columns} * (100% / 7) - 8px)`;
+
+
+                          const top =
+                            31 +
+                            eventIndex *
+                              28;
+
+
+                          return (
+                            <div
+                              key={
+                                `${item.id}-${weekIndex}`
+                              }
+                              className="absolute pointer-events-auto"
+                              style={{
+                                left,
+                                width,
+                                top,
+                              }}
+                            >
+
+                              <div
+                                draggable
+                                onDragStart={e =>
+                                  handleEventDragStart(
+                                    e,
+                                    item
+                                  )
+                                }
+                                onClick={() =>
+                                  openEditor(
+                                    item
+                                  )
+                                }
+                                className="group relative h-5 rounded-md text-white px-2 flex items-center cursor-grab active:cursor-grabbing shadow-sm"
+                                style={{
+                                  backgroundColor:
+                                    item.color,
+                                }}
+                              >
+
+                                {/* LEFT RESIZE */}
+
+                                <div
+                                  onMouseDown={e =>
+                                    beginResize(
+                                      e,
+                                      item,
+                                      "left"
+                                    )
                                   }
-
+                                  className="absolute left-0 top-0 bottom-0 w-2 cursor-ew-resize z-20 opacity-0 group-hover:opacity-100"
+                                >
+                                  <div className="h-full w-0.5 bg-white/80" />
                                 </div>
 
-                              )}
+
+                                {/* TITLE */}
+
+                                <span className="text-[8px] font-bold truncate flex-1">
+                                  {item.title}
+                                </span>
+
+
+                                {/* NOTE */}
+
+                                {item.note && (
+                                  <StickyNote className="h-2.5 w-2.5 ml-1 shrink-0" />
+                                )}
+
+
+                                {/* RIGHT RESIZE */}
+
+                                <div
+                                  onMouseDown={e =>
+                                    beginResize(
+                                      e,
+                                      item,
+                                      "right"
+                                    )
+                                  }
+                                  className="absolute right-0 top-0 bottom-0 w-2 cursor-ew-resize z-20 opacity-0 group-hover:opacity-100"
+                                >
+                                  <div className="h-full w-0.5 bg-white/80 ml-auto" />
+                                </div>
+
+                              </div>
 
                             </div>
                           );
@@ -1469,33 +1931,44 @@ export default function StudyCalendar() {
               }
             )}
 
-          </div>
+          </main>
 
-        </main>
+        </div>
 
       </div>
 
 
       {/* ======================================================
-          ITEM DETAIL / NOTES PANEL
+          EDIT MODAL
       ====================================================== */}
 
-      {selectedItem && (
+      {selectedEvent && (
 
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-primary/20 backdrop-blur-sm p-4">
+        <div className="fixed inset-0 z-50 bg-black/30 backdrop-blur-sm flex items-center justify-center p-4">
 
-          <div className="w-full max-w-md bg-white rounded-2xl shadow-2xl border border-border-light overflow-hidden">
+          <div className="bg-white w-full max-w-[390px] rounded-2xl shadow-2xl">
 
-            <div className="p-5 border-b border-border-light flex items-center justify-between">
+            {/* HEADER */}
+
+            <div className="p-5 flex items-start justify-between">
 
               <div>
 
-                <div className="text-[8px] uppercase font-black text-primary/35">
-                  {selectedItem.type}
+                <div
+                  className="inline-flex px-2 py-1 rounded-md text-[8px] font-black uppercase tracking-wider"
+                  style={{
+                    backgroundColor:
+                      `${selectedEvent.color}15`,
+                    color:
+                      selectedEvent.color,
+                  }}
+                >
+                  {selectedEvent.type}
                 </div>
 
-                <h3 className="font-display text-base font-black text-primary mt-1">
-                  {selectedItem.title}
+
+                <h3 className="text-base font-black text-primary mt-2">
+                  Edit Calendar Item
                 </h3>
 
               </div>
@@ -1504,79 +1977,108 @@ export default function StudyCalendar() {
               <button
                 type="button"
                 onClick={() =>
-                  setSelectedItem(
+                  setSelectedEvent(
                     null
                   )
                 }
-                className="h-8 w-8 rounded-lg hover:bg-bg-light flex items-center justify-center"
+                className="h-7 w-7 rounded-lg hover:bg-bg-light flex items-center justify-center"
               >
-
                 <X className="h-4 w-4" />
-
               </button>
 
             </div>
 
 
-            <div className="p-5 space-y-5">
+            <div className="px-5 pb-5 space-y-4">
 
-              {/* DURATION */}
+              {/* TITLE */}
 
               <div>
 
-                <label className="text-[9px] uppercase font-black tracking-wider text-primary/40">
-                  Duration
+                <label className="text-[8px] uppercase font-black tracking-widest text-primary/45">
+                  Title
                 </label>
 
-                <div className="mt-2 flex items-center gap-2 rounded-xl bg-bg-light p-3">
-
-                  <Clock3 className="h-4 w-4 text-accent-purple" />
-
-                  <span className="text-xs font-bold text-primary">
-                    {selectedItem.duration ||
-                      "Flexible"}
-                  </span>
-
-                </div>
+                <input
+                  value={
+                    selectedEvent.title
+                  }
+                  onChange={e =>
+                    setSelectedEvent(
+                      current =>
+                        current
+                          ? {
+                              ...current,
+                              title:
+                                e.target.value,
+                            }
+                          : null
+                    )
+                  }
+                  className="w-full h-9 mt-1 rounded-lg border border-border-light px-3 text-xs font-medium outline-none focus:ring-2 focus:ring-accent-purple/20"
+                />
 
               </div>
 
 
-              {/* EXTEND */}
+              {/* DATES */}
 
-              <div>
+              <div className="grid grid-cols-2 gap-3">
 
-                <label className="text-[9px] uppercase font-black tracking-wider text-primary/40">
-                  Extend Schedule
-                </label>
+                <div>
 
-                <div className="grid grid-cols-3 gap-2 mt-2">
+                  <label className="text-[8px] uppercase font-black tracking-widest text-primary/45">
+                    Start
+                  </label>
 
-                  {[1, 2, 3].map(
-                    (days) => (
+                  <input
+                    type="date"
+                    value={
+                      selectedEvent.start
+                    }
+                    onChange={e =>
+                      setSelectedEvent(
+                        current =>
+                          current
+                            ? {
+                                ...current,
+                                start:
+                                  e.target.value,
+                              }
+                            : null
+                      )
+                    }
+                    className="w-full h-9 mt-1 rounded-lg border border-border-light px-2 text-[10px] outline-none"
+                  />
 
-                      <button
-                        key={
-                          days
-                        }
-                        type="button"
-                        onClick={() =>
-                          extendItem(
-                            selectedItem,
-                            days
-                          )
-                        }
-                        className="rounded-xl border border-border-light py-2 text-[9px] font-bold hover:bg-bg-light"
-                      >
-                        +{days} day
-                        {days >
-                        1
-                          ? "s"
-                          : ""}
-                      </button>
+                </div>
 
-                    )
-                  )}
+
+                <div>
+
+                  <label className="text-[8px] uppercase font-black tracking-widest text-primary/45">
+                    End
+                  </label>
+
+                  <input
+                    type="date"
+                    value={
+                      selectedEvent.end
+                    }
+                    onChange={e =>
+                      setSelectedEvent(
+                        current =>
+                          current
+                            ? {
+                                ...current,
+                                end:
+                                  e.target.value,
+                              }
+                            : null
+                      )
+                    }
+                    className="w-full h-9 mt-1 rounded-lg border border-border-light px-2 text-[10px] outline-none"
+                  />
 
                 </div>
 
@@ -1587,62 +2089,42 @@ export default function StudyCalendar() {
 
               <div>
 
-                <div className="flex items-center justify-between">
-
-                  <label className="text-[9px] uppercase font-black tracking-wider text-primary/40">
-                    Color
-                  </label>
+                <label className="text-[8px] uppercase font-black tracking-widest text-primary/45">
+                  Bar Color
+                </label>
 
 
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setColorPickerOpen(
-                        (open) =>
-                          !open
-                      )
-                    }
-                    className="text-[9px] font-bold text-accent-purple"
-                  >
-                    Change
-                  </button>
+                <div className="flex gap-2 mt-2">
+
+                  {COLORS.map(
+                    color => (
+
+                      <button
+                        key={
+                          color
+                        }
+                        type="button"
+                        onClick={() =>
+                          setSelectedColor(
+                            color
+                          )
+                        }
+                        className={`h-7 w-7 rounded-full border-2 ${
+                          selectedColor ===
+                          color
+                            ? "border-primary"
+                            : "border-white"
+                        } shadow ring-1 ring-border-light`}
+                        style={{
+                          backgroundColor:
+                            color,
+                        }}
+                      />
+
+                    )
+                  )}
 
                 </div>
-
-
-                {colorPickerOpen && (
-
-                  <div className="flex flex-wrap gap-2 mt-3">
-
-                    {COLORS.map(
-                      (color) => (
-
-                        <button
-                          key={
-                            color.name
-                          }
-                          type="button"
-                          onClick={() =>
-                            changeItemColor(
-                              color.value
-                            )
-                          }
-                          title={
-                            color.name
-                          }
-                          className="h-8 w-8 rounded-full border-2 border-white shadow ring-1 ring-border-light"
-                          style={{
-                            backgroundColor:
-                              color.value,
-                          }}
-                        />
-
-                      )
-                    )}
-
-                  </div>
-
-                )}
 
               </div>
 
@@ -1651,9 +2133,9 @@ export default function StudyCalendar() {
 
               <div>
 
-                <label className="flex items-center gap-1 text-[9px] uppercase font-black tracking-wider text-primary/40">
+                <label className="flex items-center gap-1 text-[8px] uppercase font-black tracking-widest text-primary/45">
 
-                  <FileText className="h-3 w-3" />
+                  <StickyNote className="h-3 w-3" />
 
                   Notes
 
@@ -1664,28 +2146,66 @@ export default function StudyCalendar() {
                   value={
                     noteText
                   }
-                  onChange={(event) =>
+                  onChange={e =>
                     setNoteText(
-                      event.target.value
+                      e.target.value
                     )
                   }
-                  placeholder="Add your own notes for this study item..."
-                  rows={5}
-                  className="w-full mt-2 rounded-xl border border-border-light p-3 text-xs outline-none focus:ring-2 focus:ring-accent-purple/20 resize-none"
+                  placeholder="Add notes for this phase, module or topic..."
+                  rows={4}
+                  className="w-full mt-1 rounded-lg border border-border-light p-3 text-xs resize-none outline-none focus:ring-2 focus:ring-accent-purple/20"
                 />
 
               </div>
 
 
-              <button
-                type="button"
-                onClick={
-                  saveNote
-                }
-                className="w-full gradient-bg text-white rounded-xl py-3 text-xs font-bold"
-              >
-                Save Notes
-              </button>
+              {/* BUTTONS */}
+
+              <div className="flex items-center justify-between pt-2">
+
+                <button
+                  type="button"
+                  onClick={
+                    removeEvent
+                  }
+                  className="h-9 px-3 rounded-lg border border-red-200 text-red-500 text-[10px] font-bold flex items-center gap-1.5 hover:bg-red-50"
+                >
+
+                  <Trash2 className="h-3 w-3" />
+
+                  Remove
+
+                </button>
+
+
+                <div className="flex gap-2">
+
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setSelectedEvent(
+                        null
+                      )
+                    }
+                    className="h-9 px-4 rounded-lg border border-border-light text-[10px] font-bold text-primary/60"
+                  >
+                    Cancel
+                  </button>
+
+
+                  <button
+                    type="button"
+                    onClick={
+                      saveEditor
+                    }
+                    className="h-9 px-4 rounded-lg bg-purple-600 text-white text-[10px] font-bold"
+                  >
+                    Save
+                  </button>
+
+                </div>
+
+              </div>
 
             </div>
 
